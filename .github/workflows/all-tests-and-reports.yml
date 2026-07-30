@@ -74,13 +74,25 @@ jobs:
           cd ..
 
       # ─────────────────────────────────────────────────────────────
+      # MASTER CONSOLIDATED EXCEL QA AUTOMATION REPORT
+      # ─────────────────────────────────────────────────────────────
+      - name: 📋 5. Compile Master QA Automation Execution Board Excel Workbook
+        run: |
+          echo "===================================================="
+          echo "📋 COMPILING MASTER QA AUTOMATION EXECUTION BOARD EXCEL"
+          echo "===================================================="
+          npm install --legacy-peer-deps
+          node scripts/generate_master_qa_report.js
+
+      # ─────────────────────────────────────────────────────────────
       # UPLOAD ALL EXCEL TEST REPORTS AS ARTIFACTS
       # ─────────────────────────────────────────────────────────────
-      - name: 📊 Upload All Test Excel Reports & Security Artifacts
+      - name: 📊 Upload Master Test Excel Workbook & Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: All-Test-Excel-Reports
+          name: ResumeAI-Master-QA-Excel-Report
           path: |
+            ResumeAI_Master_QA_Automation_Execution_Report.xlsx
             selenium-tests/*.xlsx
             appium-tests/*.xlsx
             load-tests/*.xlsx
