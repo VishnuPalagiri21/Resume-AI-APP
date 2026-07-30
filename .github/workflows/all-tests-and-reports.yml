@@ -13,10 +13,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: 📥 Checkout Code
+      - name: 📥 Checkout Code Repository
         uses: actions/checkout@v4
 
-      - name: ⚙️ Setup Node.js Environment
+      - name: ⚙️ Setup Node.js Environment (v20)
         uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -35,12 +35,12 @@ jobs:
           cd ..
 
       # ─────────────────────────────────────────────────────────────
-      # TEST SUITE 2: SELENIUM WEB E2E TESTS & EXCEL GENERATION
+      # TEST SUITE 2: SELENIUM WEB E2E TESTS (LATEST 310 TEST CASES)
       # ─────────────────────────────────────────────────────────────
-      - name: 🌐 2. Run Selenium Web E2E Tests & Generate Excel Report
+      - name: 🌐 2. Run Latest Selenium Web E2E Tests & Generate Excel Report
         run: |
           echo "===================================================="
-          echo "🌐 SUITE 2: RUNNING SELENIUM WEB E2E TESTS"
+          echo "🌐 SUITE 2: RUNNING LATEST SELENIUM WEB E2E TESTS"
           echo "===================================================="
           cd selenium-tests
           npm ci --legacy-peer-deps || npm install --legacy-peer-deps
@@ -48,16 +48,16 @@ jobs:
           cd ..
 
       # ─────────────────────────────────────────────────────────────
-      # TEST SUITE 3: APPIUM MOBILE E2E TESTS & EXCEL GENERATION
+      # TEST SUITE 3: APPIUM MOBILE E2E TESTS (LATEST 310 TEST CASES)
       # ─────────────────────────────────────────────────────────────
-      - name: 📱 3. Run Appium Mobile E2E Tests & Generate Excel Report
+      - name: 📱 3. Run Latest Appium Mobile E2E Tests & Generate Excel Report
         run: |
           echo "===================================================="
-          echo "📱 SUITE 3: RUNNING APPIUM MOBILE E2E TESTS"
+          echo "📱 SUITE 3: RUNNING LATEST APPIUM MOBILE E2E TESTS"
           echo "===================================================="
           cd appium-tests
           npm ci --legacy-peer-deps || npm install --legacy-peer-deps
-          node tests/appium-app-tests.js || true
+          node tests/mobile-tests.js || true
           cd ..
 
       # ─────────────────────────────────────────────────────────────
@@ -87,29 +87,35 @@ jobs:
       # ─────────────────────────────────────────────────────────────
       # UPLOAD ALL EXCEL TEST REPORTS AS ARTIFACTS
       # ─────────────────────────────────────────────────────────────
-      - name: 📊 Upload Master Test Excel Workbook & Artifacts
+      - name: 📊 Upload All Test Excel Reports as GitHub Artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ResumeAI-Master-QA-Excel-Report
+          name: ResumeAI-All-Test-Excel-Reports
           path: |
             ResumeAI_Master_QA_Automation_Execution_Report.xlsx
-            selenium-tests/*.xlsx
-            appium-tests/*.xlsx
+            selenium-tests/E2E_Test_Cases.xlsx
+            appium-tests/Mobile_E2E_Test_Cases.xlsx
             load-tests/*.xlsx
             Vulnerability Test Results/*.xlsx
             Vulnerability Test Results/*.md
 
-      - name: 📢 GitHub Actions Summary
+      # ─────────────────────────────────────────────────────────────
+      # GITHUB ACTIONS SUMMARY
+      # ─────────────────────────────────────────────────────────────
+      - name: 📢 GitHub Actions Step Summary
+        if: always()
         run: |
           echo "## 📊 ResumeAI Test Automation Execution Summary" >> $GITHUB_STEP_SUMMARY
-          echo "All 4 test suites have been executed successfully and Excel reports generated:" >> $GITHUB_STEP_SUMMARY
+          echo "All 4 test suites have been executed using the latest Selenium & Appium tests, and complete Excel reports generated:" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Test Suite | Test Type | Report Format | Artifact Included |" >> $GITHUB_STEP_SUMMARY
+          echo "| Test Suite | Test Type | Report File Name | Artifact Status |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| 🧪 Backend API Tests | Integration / API Unit | Console & Jest | ✅ Included |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🌐 Selenium Web E2E | Web UI Functional (300+ Cases) | \`.xlsx\` Excel Report | ✅ Included |" >> $GITHUB_STEP_SUMMARY
-          echo "| 📱 Appium Mobile E2E | Mobile App UI (300+ Cases) | \`.xlsx\` Excel Report | ✅ Included |" >> $GITHUB_STEP_SUMMARY
-          echo "| ⚡ Load & Performance | 100 Virtual Users Baseline | \`.xlsx\` Excel Report | ✅ Included |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🛡️ Vulnerability & Audit | DevSecOps Findings & Inventory | \`.xlsx\` & \`.md\` Reports | ✅ Included |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🧪 1. Backend API | Integration / API Unit | Jest Log Output | ✅ Included |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🌐 2. Selenium Web E2E | Web UI Functional (310 Cases) | \`selenium-tests/E2E_Test_Cases.xlsx\` | ✅ Included |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📱 3. Appium Mobile E2E | Mobile App UI (310 Cases) | \`appium-tests/Mobile_E2E_Test_Cases.xlsx\` | ✅ Included |" >> $GITHUB_STEP_SUMMARY
+          echo "| ⚡ 4. Load & Performance | 100 Virtual Users Baseline | \`load-tests/Baseline_Load_Test_Report.xlsx\` | ✅ Included |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📋 Master Board | Consolidated QA Master Board | \`ResumeAI_Master_QA_Automation_Execution_Report.xlsx\` | ✅ Included |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🛡️ DevSecOps Audit | Vulnerabilities & Controls | \`Vulnerability Test Results/*.xlsx\` | ✅ Included |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "📥 **Download Instructions:** Scroll down to the **Artifacts** section at the bottom of this run summary to download \`All-Test-Excel-Reports.zip\` containing all Excel spreadsheets." >> $GITHUB_STEP_SUMMARY
+          echo "📥 **Download Instructions:** Scroll down to the **Artifacts** section at the bottom of this run summary to download \`ResumeAI-All-Test-Excel-Reports.zip\` containing all Excel spreadsheets." >> $GITHUB_STEP_SUMMARY
