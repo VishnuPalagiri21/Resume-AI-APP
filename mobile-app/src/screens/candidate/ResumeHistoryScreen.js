@@ -1,0 +1,110 @@
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, FlatList, RefreshControl, TouchableOpacity } from 'react-native';
+import { theme } from '../../styles/theme';
+import { globalStyles } from '../../styles/globalStyles';
+import { Header } from '../../components/common/Header';
+import { candidateApi } from '../../api/candidateApi';
+
+export const ResumeHistoryScreen = ({ navigation }) => {
+  const [resumes, setResumes] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchResumes = async () => {
+    setLoading(true);
+    try {
+      const data = await candidateApi.getResumes();
+      setResumes(data.resumes || []);
+    } catch (err) {
+      console.error('[ResumeHistory fetch error]', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchResumes();
+  }, []);
+
+  return (
+    <View style={globalStyles.container}>
+      <Header title="Resume History 📋" subtitle="All your analyzed PDF documents" />
+      <FlatList
+        data={resumes}
+        keyExtractor={(item) => item._id}
+        contentContainerStyle={styles.list}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchResumes} tintColor={theme.colors.primary} />}
+        renderItem={({ item }) => (
+          <TouchableOpacity
+            style={globalStyles.card}
+            onPress={() => navigation.navigate('ResumeAnalysisResult', { resume: item })}
+            activeOpacity={0.8}
+          >
+            <View style={globalStyles.rowBetween}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.fileName}>📄 {item.fileName}</Text>
+                <Text style={styles.date}>
+                  {new Date(item.createdAt).toLocaleDateString()} at{' '}
+                  {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </Text>
+              </View>
+              <View style={styles.scoreBox}>
+                <Text style={styles.scoreText}>{item.atsScore}%</Text>
+                <Text style={styles.scoreLabel}>ATS Match</Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+        )}
+        ListEmptyComponent={
+          !loading && (
+            <View style={styles.emptyBox}>
+              <Text style={styles.emptyText}>No resumes analyzed yet.</Text>
+            </View>
+          )
+        }
+      />
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  list: {
+    padding: theme.spacing.md,
+  },
+  fileName: {
+    fontSize: theme.fontSize.md,
+    fontWeight: 'bold',
+    color: theme.colors.textPrimary,
+  },
+  date: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.textMuted,
+    marginTop: 4,
+  },
+  scoreBox: {
+    backgroundColor: 'rgba(139, 92, 246, 0.15)',
+    borderColor: theme.colors.primary,
+    borderWidth: 1,
+    borderRadius: theme.borderRadius.md,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    alignItems: 'center',
+  },
+  scoreText: {
+    fontSize: theme.fontSize.md,
+    fontWeight: 'bold',
+    color: theme.colors.primaryLight,
+  },
+  scoreLabel: {
+    fontSize: 9,
+    color: theme.colors.textMuted,
+    textTransform: 'uppercase',
+  },
+  emptyBox: {
+    padding: theme.spacing.xl,
+    alignItems: 'center',
+  },
+  emptyText: {
+    color: theme.colors.textMuted,
+    fontSize: theme.fontSize.sm,
+  },
+});

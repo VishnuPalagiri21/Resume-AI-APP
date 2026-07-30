@@ -1,0 +1,14 @@
+{
+  "name": "resumeai-root",
+  "version": "1.0.0",
+  "description": "ResumeAI Monorepo Root",
+  "scripts": {
+    "dev": "npm run dev --prefix backend",
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:frontend": "npm start --prefix web-app",
+    "dev:mobile": "npm start --prefix mobile-app",
+    "test:backend": "npm test --prefix backend",
+    "test:selenium": "npm test --prefix selenium_test",
+    "test:appium": "npm test --prefix appium_test"
+  }
+}

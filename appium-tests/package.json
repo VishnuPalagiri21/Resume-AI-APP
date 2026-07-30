@@ -1,0 +1,15 @@
+{
+  "name": "resumeai-appium-tests",
+  "version": "1.0.0",
+  "description": "Appium Mobile E2E Functional Testing Suite for ResumeAI Mobile App Frontend with 300+ Detailed Test Case Excel Report",
+  "main": "tests/appium-app-tests.js",
+  "scripts": {
+    "test": "node tests/appium-app-tests.js",
+    "generate-report": "node tests/appium-app-tests.js"
+  },
+  "dependencies": {
+    "exceljs": "^4.4.0",
+    "webdriverio": "^8.38.0",
+    "dotenv": "^16.4.5"
+  }
+}

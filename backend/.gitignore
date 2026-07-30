@@ -1,0 +1,38 @@
+# ─── Environment Variables ──────────────────────────────────────────────────
+# NEVER commit these to git. Rotate keys immediately if exposed.
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ─── Dependencies ────────────────────────────────────────────────────────────
+node_modules/
+.pnp
+.pnp.js
+
+# ─── Logs ────────────────────────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ─── Uploads & Generated Files ───────────────────────────────────────────────
+uploads/
+*.pdf
+
+# ─── Coverage ────────────────────────────────────────────────────────────────
+coverage/
+.nyc_output/
+
+# ─── OS & Editor Artifacts ───────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# ─── Secrets & Certs ─────────────────────────────────────────────────────────
+*.pem
+*.key
+*.cert
