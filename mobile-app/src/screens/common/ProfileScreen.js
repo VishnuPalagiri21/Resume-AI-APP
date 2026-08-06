@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../../styles/theme';
 import { globalStyles } from '../../styles/globalStyles';
 import { Header } from '../../components/common/Header';
@@ -8,68 +9,86 @@ import { useAuth } from '../../context/AuthContext';
 
 export const ProfileScreen = () => {
   const { user, logout } = useAuth();
+  const initials = (user?.fullName || 'PV').split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
 
   return (
-    <View style={globalStyles.container}>
+    <SafeAreaView style={globalStyles.container}>
       <Header title="My Profile 👤" subtitle="Account details & session controls" showLogout={false} />
       <ScrollView contentContainerStyle={styles.scroll}>
+        {/* Avatar header matching web avatar circle */}
         <View style={styles.avatarBox}>
-          <Text style={{ fontSize: 48 }}>👤</Text>
+          <View style={globalStyles.avatarCircle}>
+            <Text style={globalStyles.avatarText}>{initials}</Text>
+          </View>
           <Text style={styles.name}>{user?.fullName || 'User Profile'}</Text>
           <Text style={styles.email}>{user?.email}</Text>
           <View style={styles.roleBadge}>
-            <Text style={styles.roleText}>Role: {user?.role?.toUpperCase() || 'USER'}</Text>
+            <Text style={styles.roleText}>ROLE: {user?.role?.toUpperCase() || 'USER'}</Text>
           </View>
         </View>
 
+        {/* Account Details Glass Card */}
         <View style={globalStyles.card}>
-          <Text style={styles.cardHeading}>Account Information</Text>
+          <Text style={styles.cardHeading}>Account Overview</Text>
+
           <View style={styles.row}>
-            <Text style={styles.label}>Full Name:</Text>
+            <Text style={styles.label}>Full Name</Text>
             <Text style={styles.val}>{user?.fullName || 'N/A'}</Text>
           </View>
+
           <View style={styles.row}>
-            <Text style={styles.label}>Email:</Text>
+            <Text style={styles.label}>Email Address</Text>
             <Text style={styles.val}>{user?.email}</Text>
           </View>
+
           {user?.company ? (
             <View style={styles.row}>
-              <Text style={styles.label}>Company:</Text>
+              <Text style={styles.label}>Company</Text>
               <Text style={styles.val}>{user.company}</Text>
             </View>
           ) : null}
+
           {user?.phone ? (
             <View style={styles.row}>
-              <Text style={styles.label}>Phone:</Text>
+              <Text style={styles.label}>Phone Number</Text>
               <Text style={styles.val}>{user.phone}</Text>
             </View>
           ) : null}
+
+          <View style={[styles.row, { borderBottomWidth: 0 }]}>
+            <Text style={styles.label}>Platform Access</Text>
+            <Text style={[styles.val, { color: theme.colors.accent }]}>Verified Member</Text>
+          </View>
         </View>
 
+        {/* Sign Out Button */}
         <CustomButton
           title="Sign Out of Session"
           variant="danger"
           onPress={logout}
-          style={{ marginTop: theme.spacing.lg }}
+          style={{ marginTop: theme.spacing.md }}
         />
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   scroll: {
     padding: theme.spacing.md,
+    paddingBottom: theme.spacing.xxl,
   },
   avatarBox: {
     alignItems: 'center',
-    marginBottom: theme.spacing.lg,
+    marginBottom: theme.spacing.xl,
+    marginTop: theme.spacing.sm,
   },
   name: {
-    fontSize: theme.fontSize.xxl,
-    fontWeight: 'bold',
+    fontSize: theme.fontSize.xl,
+    fontWeight: '900',
     color: theme.colors.textPrimary,
-    marginTop: 8,
+    marginTop: 12,
+    letterSpacing: -0.4,
   },
   email: {
     fontSize: theme.fontSize.sm,
@@ -78,38 +97,44 @@ const styles = StyleSheet.create({
   },
   roleBadge: {
     backgroundColor: 'rgba(139, 92, 246, 0.15)',
-    borderColor: theme.colors.primary,
+    borderColor: 'rgba(139, 92, 246, 0.3)',
     borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
     borderRadius: theme.borderRadius.full,
-    marginTop: theme.spacing.xs,
+    marginTop: theme.spacing.sm,
   },
   roleText: {
-    fontSize: theme.fontSize.xs,
+    fontSize: 10,
     color: theme.colors.primaryLight,
-    fontWeight: 'bold',
+    fontWeight: '800',
+    letterSpacing: 0.8,
   },
   cardHeading: {
     fontSize: theme.fontSize.md,
-    fontWeight: 'bold',
+    fontWeight: '800',
     color: theme.colors.textPrimary,
-    marginBottom: theme.spacing.sm,
+    marginBottom: theme.spacing.md,
+    letterSpacing: -0.3,
   },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 6,
+    alignItems: 'center',
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
+    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
   },
   label: {
-    color: theme.colors.textSecondary,
-    fontSize: theme.fontSize.sm,
+    color: theme.colors.textMuted,
+    fontSize: theme.fontSize.xs,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   val: {
     color: theme.colors.textPrimary,
     fontSize: theme.fontSize.sm,
-    fontWeight: '600',
+    fontWeight: '700',
   },
 });

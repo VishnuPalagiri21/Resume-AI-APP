@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { getRoleCredentials, saveRoleCredential, removeRoleCredential } from "../../utils/savedCredentials";
 
 const RECRUITER_TESTIMONIALS = [
   {
@@ -33,6 +34,11 @@ export default function RecruiterAuth() {
   const [showPassword, setShowPassword] = useState(false);
   const [activeTestimonial, setActiveTestimonial] = useState(0);
 
+  const [savedAccounts, setSavedAccounts] = useState([]);
+  const [showDropdown, setShowDropdown]   = useState(false);
+  const [isEditable, setIsEditable]       = useState(false);
+  const emailGroupRef = React.useRef(null);
+
   const { login, signup, loginWithGoogle, user } = useAuth();
   const navigate = useNavigate();
 
@@ -44,7 +50,45 @@ export default function RecruiterAuth() {
     }
   }, [user, navigate]);
 
+  // Load saved recruiter credentials for dropdown — fields start EMPTY.
+  // Credentials are only filled when the user explicitly selects an account.
+  React.useEffect(() => {
+    setIsEditable(false);
+    if (mode === "login") {
+      const creds = getRoleCredentials("recruiter");
+      setSavedAccounts(creds);
+      // ✅ Do NOT auto-fill email/password here.
+      // The dropdown will appear on email field focus; user must select explicitly.
+    }
+  }, [mode]);
+
+  React.useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (emailGroupRef.current && !emailGroupRef.current.contains(e.target)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const handleSelectSavedAccount = (acc) => {
+    setForm((f) => ({ ...f, email: acc.email, password: acc.password }));
+    setShowDropdown(false);
+    unlockInputs();
+  };
+
+  const handleRemoveSavedAccount = (e, accEmail) => {
+    e.stopPropagation();
+    removeRoleCredential("recruiter", accEmail);
+    const updated = savedAccounts.filter((a) => a.email.toLowerCase() !== accEmail.toLowerCase());
+    setSavedAccounts(updated);
+    if (form.email.toLowerCase() === accEmail.toLowerCase()) {
+      setForm((f) => ({ ...f, email: "", password: "" }));
+    }
+  };
 
   const unlockInputs = () => {
     if (!unlocked) setUnlocked(true);
@@ -70,11 +114,14 @@ export default function RecruiterAuth() {
     try {
       if (mode === "login") {
         await login(form.email, form.password, "recruiter");
+        if (rememberMe) {
+          saveRoleCredential("recruiter", form.email, form.password);
+        }
         navigate("/dashboard/recruiter");
       } else {
         await signup({ ...form, role: "recruiter" });
         setMode("login");
-        setError("✅ Account submitted! Await admin approval before logging in.");
+        setError("✅ Account created! Please log in.");
         setForm({ fullName: "", email: "", password: "", company: "" });
         setUnlocked(false);
       }
@@ -201,10 +248,14 @@ export default function RecruiterAuth() {
             </div>
 
             <h2 style={styles.welcomeTitle}>
-              Welcome <span className="serif-font" style={{ color: "#0891b2", fontStyle: "italic", fontWeight: 400 }}>back.</span>
+              {mode === "login" ? (
+                <>Welcome <span className="serif-font" style={{ color: "#0891b2", fontStyle: "italic", fontWeight: 400 }}>back.</span></>
+              ) : (
+                <>Create <span className="serif-font" style={{ color: "#0891b2", fontStyle: "italic", fontWeight: 400 }}>account.</span></>
+              )}
             </h2>
             <p style={{ color: "#64748b", fontSize: "0.9rem", marginTop: "4px" }}>
-              Sign in to access your recruiter workspace.
+              {mode === "login" ? "Sign in to access your recruiter workspace." : "Create your recruiter account to start hiring top talent."}
             </p>
           </div>
 
@@ -220,7 +271,7 @@ export default function RecruiterAuth() {
               style={{ ...styles.lightTab, ...(mode === "signup" ? styles.lightTabActive : {}) }}
               onClick={() => { setMode("signup"); setError(""); setForm({ fullName: "", email: "", password: "", company: "" }); }}
             >
-              Request Access
+              Register
             </button>
           </div>
 
@@ -237,7 +288,7 @@ export default function RecruiterAuth() {
           )}
 
           {/* Form */}
-          <form onSubmit={handleSubmit} autoComplete={unlocked ? "on" : "off"}>
+          <form onSubmit={handleSubmit} autoComplete="off">
             {mode === "signup" && (
               <>
                 <div style={{ marginBottom: "16px" }}>
@@ -265,25 +316,64 @@ export default function RecruiterAuth() {
               </>
             )}
 
-            <div style={{ marginBottom: "16px" }}>
+            <div style={{ marginBottom: "16px", position: "relative" }} ref={emailGroupRef}>
               <label className="label-split-light">Work Email</label>
               <input
                 className="input-split-light"
                 type="email"
+                name="recruiter_login_email_no_autofill"
+                autoComplete="off"
+                readOnly={!isEditable}
                 placeholder="hr@company.com"
                 value={form.email}
                 onChange={set("email")}
-                onMouseEnter={unlockInputs}
-                onFocus={unlockInputs}
-                onClick={unlockInputs}
+                onFocus={(e) => {
+                  setIsEditable(true);
+                  e.target.removeAttribute("readonly");
+                  if (mode === "login" && savedAccounts.length > 0) setShowDropdown(true);
+                }}
+                onClick={(e) => {
+                  setIsEditable(true);
+                  e.target.removeAttribute("readonly");
+                  if (mode === "login" && savedAccounts.length > 0) setShowDropdown(true);
+                }}
                 required
               />
+
+              {/* Saved Recruiter Accounts Dropdown */}
+              {mode === "login" && showDropdown && savedAccounts.length > 0 && (
+                <div style={styles.recruiterDropdown}>
+                  <div style={styles.recruiterDropdownHeader}>
+                    <span>SAVED RECRUITER ACCOUNTS</span>
+                  </div>
+                  {savedAccounts.map((acc) => (
+                    <div
+                      key={acc.email}
+                      style={styles.dropdownItem}
+                      onClick={() => handleSelectSavedAccount(acc)}
+                    >
+                      <div style={{ display: "flex", flexDirection: "column" }}>
+                        <span style={{ fontWeight: 600, color: "#1e293b", fontSize: "0.85rem" }}>{acc.email}</span>
+                        <span style={{ fontSize: "0.72rem", color: "#64748b" }}>Saved recruiter login</span>
+                      </div>
+                      <button
+                        type="button"
+                        style={styles.removeBtn}
+                        onClick={(e) => handleRemoveSavedAccount(e, acc.email)}
+                        title="Remove saved account"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div style={{ marginBottom: "16px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
                 <label className="label-split-light" style={{ marginBottom: 0 }}>Password</label>
-                <Link to="/forgot-password" style={{ fontSize: "0.78rem", color: "#0891b2", fontWeight: 600, textDecoration: "none" }}>
+                <Link to="/forgot-password?role=recruiter" style={{ fontSize: "0.78rem", color: "#0891b2", fontWeight: 600, textDecoration: "none" }}>
                   Forgot password?
                 </Link>
               </div>
@@ -291,12 +381,20 @@ export default function RecruiterAuth() {
                 <input
                   className="input-split-light"
                   type={showPassword ? "text" : "password"}
+                  name="recruiter_login_password_no_autofill"
+                  autoComplete="new-password"
+                  readOnly={!isEditable}
                   placeholder="Enter your password"
                   value={form.password}
                   onChange={set("password")}
-                  onMouseEnter={unlockInputs}
-                  onFocus={unlockInputs}
-                  onClick={unlockInputs}
+                  onFocus={(e) => {
+                    setIsEditable(true);
+                    e.target.removeAttribute("readonly");
+                  }}
+                  onClick={(e) => {
+                    setIsEditable(true);
+                    e.target.removeAttribute("readonly");
+                  }}
                   required
                 />
                 <button
@@ -330,7 +428,7 @@ export default function RecruiterAuth() {
               disabled={loading}
               style={{ ...styles.darkSubmitBtn, background: "#0891b2" }}
             >
-              {loading ? "Authenticating…" : mode === "login" ? "Sign in →" : "Request Access →"}
+              {loading ? "Authenticating…" : mode === "login" ? "Sign in →" : "Register →"}
             </button>
           </form>
 
@@ -571,5 +669,43 @@ const styles = {
     cursor: "pointer",
     transition: "all 0.2s ease",
     boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
+  },
+  recruiterDropdown: {
+    position: "absolute",
+    top: "calc(100% + 4px)",
+    left: 0, right: 0,
+    backgroundColor: "#ffffff",
+    border: "1px solid #0891b2",
+    borderRadius: "10px",
+    zIndex: 100,
+    boxShadow: "0 10px 25px rgba(0,0,0,0.15)",
+    overflow: "hidden",
+  },
+  recruiterDropdownHeader: {
+    padding: "8px 12px",
+    fontSize: "0.68rem",
+    fontWeight: 800,
+    letterSpacing: "0.8px",
+    color: "#0891b2",
+    borderBottom: "1px solid #e2e8f0",
+    backgroundColor: "#ecfeff",
+  },
+  dropdownItem: {
+    padding: "10px 14px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    cursor: "pointer",
+    borderBottom: "1px solid #f1f5f9",
+    transition: "background 0.2s ease",
+  },
+  removeBtn: {
+    background: "transparent",
+    border: "none",
+    color: "#94a3b8",
+    fontSize: "0.8rem",
+    cursor: "pointer",
+    padding: "4px 8px",
+    borderRadius: "4px",
   },
 };

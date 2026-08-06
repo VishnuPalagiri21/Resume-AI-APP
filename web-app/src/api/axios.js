@@ -21,13 +21,19 @@ API.interceptors.response.use(
       localStorage.removeItem("resumeai_user");
       window.location.href = "/";
     }
-    // Wrap the Axios error in a real Error so React's unhandled-rejection
-    // overlay shows the message string instead of [object Object]
-    const message =
+    const rawMsg =
       error.response?.data?.message ||
       error.response?.data?.error ||
       error.message ||
       "Request failed";
+    const message =
+      typeof rawMsg === "string"
+        ? rawMsg
+        : typeof rawMsg?.message === "string"
+        ? rawMsg.message
+        : typeof rawMsg?.error === "string"
+        ? rawMsg.error
+        : JSON.stringify(rawMsg);
     const wrappedError = new Error(message);
     wrappedError.response = error.response; // preserve for callers using err.response
     wrappedError.status   = error.response?.status;

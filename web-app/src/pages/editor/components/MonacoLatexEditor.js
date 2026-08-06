@@ -34,18 +34,22 @@ export default function MonacoLatexEditor({
     const model = editorRef.current.getModel();
     if (!model) return;
 
-    const monacoMarkers = errorMarkers.map((marker) => ({
-      severity:       marker.severity === "warning"
-                        ? monaco.MarkerSeverity.Warning
-                        : monaco.MarkerSeverity.Error,
-      message:        marker.message,
-      startLineNumber: marker.lineNumber,
-      endLineNumber:  marker.lineNumber,
-      startColumn:    1,
-      endColumn:      model.getLineMaxColumn(
-                        Math.min(marker.lineNumber, model.getLineCount())
-                      ),
-    }));
+    const lineCount = model.getLineCount() || 1;
+    const monacoMarkers = (errorMarkers || []).map((marker) => {
+      const lineNum = Math.max(1, Math.min(parseInt(marker.lineNumber, 10) || 1, lineCount));
+      const maxCol = Math.max(1, model.getLineMaxColumn(lineNum) || 100);
+      return {
+        severity:
+          marker.severity === "warning"
+            ? monaco.MarkerSeverity.Warning
+            : monaco.MarkerSeverity.Error,
+        message: String(marker.message || "LaTeX Error"),
+        startLineNumber: lineNum,
+        endLineNumber: lineNum,
+        startColumn: 1,
+        endColumn: maxCol,
+      };
+    });
 
     monaco.editor.setModelMarkers(model, "latex-compiler", monacoMarkers);
   }, [monaco, errorMarkers]);

@@ -1,7 +1,6 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
-import { RoleSelectScreen } from '../screens/auth/RoleSelectScreen';
 import { LoginScreen } from '../screens/auth/LoginScreen';
 import { CandidateSignupScreen } from '../screens/auth/CandidateSignupScreen';
 import { RecruiterAuthScreen } from '../screens/auth/RecruiterAuthScreen';
@@ -14,9 +13,15 @@ const Stack = createNativeStackNavigator();
 
 export const AuthNavigator = () => {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="RoleSelect" component={RoleSelectScreen} />
-      <Stack.Screen name="Login" component={LoginScreen} />
+    <Stack.Navigator
+      screenOptions={{ headerShown: false }}
+      initialRouteName="Login"
+    >
+      <Stack.Screen
+        name="Login"
+        component={LoginScreen}
+        initialParams={{ role: 'user' }}
+      />
       <Stack.Screen name="CandidateSignup" component={CandidateSignupScreen} />
       <Stack.Screen name="RecruiterAuth" component={RecruiterAuthScreen} />
       <Stack.Screen name="AdminLogin" component={AdminLoginScreen} />

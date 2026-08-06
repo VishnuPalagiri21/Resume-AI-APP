@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, RefreshControl, TouchableOpacity, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../../styles/theme';
 import { globalStyles } from '../../styles/globalStyles';
 import { Header } from '../../components/common/Header';
@@ -46,15 +47,15 @@ export const ManageRecruitersScreen = () => {
   };
 
   return (
-    <View style={globalStyles.container}>
+    <SafeAreaView style={globalStyles.container}>
       <Header title="Recruiter Approvals 🏢" subtitle="Review & authorize company recruiter accounts" />
       <FlatList
         data={recruiters}
-        keyExtractor={(item) => item._id}
+        keyExtractor={(item) => item._id || item.id || Math.random().toString()}
         contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchRecruiters} tintColor={theme.colors.danger} />}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchRecruiters} tintColor={theme.colors.warning} />}
         renderItem={({ item }) => (
-          <View style={globalStyles.card}>
+          <View style={styles.recruiterCard}>
             <View style={globalStyles.rowBetween}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.name}>{item.fullName || 'Anonymous Recruiter'}</Text>
@@ -77,14 +78,16 @@ export const ManageRecruitersScreen = () => {
               {!item.isApproved ? (
                 <TouchableOpacity
                   style={[styles.btn, styles.approveBtn]}
-                  onPress={() => handleApprove(item._id, item.fullName)}
+                  onPress={() => handleApprove(item._id || item.id, item.fullName)}
+                  activeOpacity={0.8}
                 >
                   <Text style={styles.approveText}>✓ Approve Account</Text>
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity
                   style={[styles.btn, styles.revokeBtn]}
-                  onPress={() => handleReject(item._id, item.fullName)}
+                  onPress={() => handleReject(item._id || item.id, item.fullName)}
+                  activeOpacity={0.8}
                 >
                   <Text style={styles.revokeText}>✖ Revoke Approval</Text>
                 </TouchableOpacity>
@@ -100,23 +103,34 @@ export const ManageRecruitersScreen = () => {
           )
         }
       />
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   list: {
     padding: theme.spacing.md,
+    paddingBottom: theme.spacing.xxl,
+  },
+  recruiterCard: {
+    backgroundColor: theme.colors.cardBg,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderRadius: theme.borderRadius.xl,
+    padding: theme.spacing.lg,
+    marginBottom: theme.spacing.md,
+    ...theme.shadows.sm,
   },
   name: {
-    fontSize: theme.fontSize.lg,
-    fontWeight: 'bold',
+    fontSize: theme.fontSize.md,
+    fontWeight: '800',
     color: theme.colors.textPrimary,
+    letterSpacing: -0.3,
   },
   company: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.accent,
-    fontWeight: '600',
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.accentCyan,
+    fontWeight: '700',
     marginTop: 2,
   },
   email: {
@@ -125,53 +139,57 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   statusBadge: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: theme.borderRadius.sm,
+    borderRadius: theme.borderRadius.full,
+    borderWidth: 1,
   },
   approvedBadge: {
     backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderColor: 'rgba(16, 185, 129, 0.3)',
   },
   pendingBadge: {
     backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    borderColor: 'rgba(245, 158, 11, 0.3)',
   },
   statusText: {
-    fontSize: theme.fontSize.xs,
-    fontWeight: 'bold',
+    fontSize: 10,
+    fontWeight: '800',
   },
   approvedText: {
-    color: theme.colors.success,
+    color: theme.colors.successText,
   },
   pendingText: {
-    color: theme.colors.warning,
+    color: theme.colors.warningText,
   },
   actionsRow: {
     marginTop: theme.spacing.md,
-    paddingTop: theme.spacing.xs,
+    paddingTop: theme.spacing.sm,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.08)',
+    borderTopColor: 'rgba(255, 255, 255, 0.06)',
   },
   btn: {
-    paddingVertical: 8,
-    borderRadius: theme.borderRadius.sm,
+    paddingVertical: 10,
+    borderRadius: theme.borderRadius.lg,
     alignItems: 'center',
   },
   approveBtn: {
     backgroundColor: theme.colors.success,
+    ...theme.shadows.glow,
   },
   approveText: {
     color: theme.colors.white,
-    fontWeight: 'bold',
+    fontWeight: '800',
     fontSize: theme.fontSize.xs,
   },
   revokeBtn: {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-    borderColor: theme.colors.danger,
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    borderColor: 'rgba(239, 68, 68, 0.3)',
     borderWidth: 1,
   },
   revokeText: {
-    color: theme.colors.danger,
-    fontWeight: 'bold',
+    color: theme.colors.dangerText,
+    fontWeight: '800',
     fontSize: theme.fontSize.xs,
   },
   emptyBox: {

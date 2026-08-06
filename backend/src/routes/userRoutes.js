@@ -5,6 +5,7 @@ const pdf              = require("pdf-parse");
 const supabase         = require("../config/supabase");
 const { analyzeResume } = require("../utils/atsEngine");
 const { verifyToken }   = require("../middleware/authMiddleware");
+const notificationRoutes = require("./notificationRoutes");
 
 // All user routes require authentication
 router.use(verifyToken);
@@ -29,10 +30,37 @@ const upload = multer({
   },
 });
 
+// Helper: Extract or initialize status history audit trail from application
+function getStatusHistory(app) {
+  if (Array.isArray(app.status_history) && app.status_history.length > 0) {
+    return app.status_history;
+  }
+  const m = app.cover_note ? app.cover_note.match(/\[STATUS_HISTORY: (.*?)\]/s) : null;
+  if (m) {
+    try {
+      return JSON.parse(m[1]);
+    } catch (e) {}
+  }
+  const prettyMap = {
+    applied: "Applied",
+    under_review: "Under Review",
+    shortlisted: "Shortlisted",
+    selected: "Selected",
+    rejected: "Rejected",
+  };
+  return [
+    {
+      status: prettyMap[app.status] || app.status || "Applied",
+      timestamp: app.created_at || new Date().toISOString(),
+      updatedBy: "Candidate",
+    },
+  ];
+}
+
 /* ─────────────────────────────────────────────
    GET /api/user/stats
    Dashboard summary: resume count, applications
-   count, active job count.
+   count, application lifecycle breakdown, active jobs, unread notifications.
 ───────────────────────────────────────────── */
 router.get("/stats", async (req, res) => {
   try {
@@ -40,13 +68,42 @@ router.get("/stats", async (req, res) => {
       { count: resumeCount },
       { count: applicationCount },
       { count: activeJobs },
+      { count: underReview },
+      { count: shortlisted },
+      { count: selected },
+      { count: rejected },
     ] = await Promise.all([
       supabase.from("resumes").select("*", { count: "exact", head: true }).eq("user_id", req.user.id),
       supabase.from("applications").select("*", { count: "exact", head: true }).eq("user_id", req.user.id),
       supabase.from("jobs").select("*", { count: "exact", head: true }).eq("is_active", true),
+      supabase.from("applications").select("*", { count: "exact", head: true }).eq("user_id", req.user.id).eq("status", "under_review"),
+      supabase.from("applications").select("*", { count: "exact", head: true }).eq("user_id", req.user.id).eq("status", "shortlisted"),
+      supabase.from("applications").select("*", { count: "exact", head: true }).eq("user_id", req.user.id).eq("status", "selected"),
+      supabase.from("applications").select("*", { count: "exact", head: true }).eq("user_id", req.user.id).eq("status", "rejected"),
     ]);
 
-    res.json({ resumeCount, applicationCount, activeJobs });
+    let unreadNotifications = 0;
+    try {
+      const { data: notifs, error: notifErr } = await supabase
+        .from("notifications")
+        .select("id")
+        .eq("user_id", req.user.id)
+        .eq("is_read", false);
+      if (!notifErr && notifs) {
+        unreadNotifications = notifs.length;
+      }
+    } catch (e) {}
+
+    res.json({
+      resumeCount: resumeCount || 0,
+      applicationCount: applicationCount || 0,
+      activeJobs: activeJobs || 0,
+      underReview: underReview || 0,
+      shortlisted: shortlisted || 0,
+      selected: selected || 0,
+      rejected: rejected || 0,
+      unreadNotifications,
+    });
   } catch (err) {
     console.error("[userRoutes] /stats error:", err.message);
     res.status(500).json({ message: "Failed to fetch stats" });
@@ -74,7 +131,6 @@ router.get("/jobs", async (req, res) => {
     const { data, error } = await query;
     if (error) throw error;
 
-    // Fetch recruiter profiles separately
     const recruiterIds = [...new Set(data.map(j => j.recruiter_id).filter(Boolean))];
     let recruiterMap = {};
     if (recruiterIds.length > 0) {
@@ -109,57 +165,57 @@ router.get("/jobs", async (req, res) => {
 
 /* ─────────────────────────────────────────────
    GET /api/user/jobs/:id
-   Single job detail.
 ───────────────────────────────────────────── */
 router.get("/jobs/:id", async (req, res) => {
   try {
-    const { data, error } = await supabase
+    const { data: job, error } = await supabase
       .from("jobs")
       .select("*")
       .eq("id", req.params.id)
       .single();
 
-    if (error || !data) return res.status(404).json({ message: "Job not found" });
+    if (error || !job) return res.status(404).json({ message: "Job not found" });
 
-    const { data: recruiterProfile } = await supabase
-      .from("profiles")
-      .select("full_name, company")
-      .eq("id", data.recruiter_id)
-      .maybeSingle();
+    let recruiterInfo = { fullName: "", company: job.company };
+    if (job.recruiter_id) {
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("full_name, company")
+        .eq("id", job.recruiter_id)
+        .single();
+      if (prof) recruiterInfo = { fullName: prof.full_name, company: prof.company };
+    }
 
     res.json({
-      _id:            data.id,
-      title:          data.title,
-      description:    data.description,
-      company:        data.company,
-      location:       data.location,
-      salaryRange:    data.salary_range,
-      skillsRequired: data.skills_required,
-      isActive:       data.is_active,
-      createdAt:      data.created_at,
-      recruiterId: {
-        fullName: recruiterProfile?.full_name || "",
-        company:  recruiterProfile?.company || data.company,
+      job: {
+        _id:            job.id,
+        title:          job.title,
+        description:    job.description,
+        company:        job.company,
+        location:       job.location,
+        salaryRange:    job.salary_range,
+        skillsRequired: job.skills_required,
+        isActive:       job.is_active,
+        createdAt:      job.created_at,
+        recruiterId:    recruiterInfo,
       },
     });
   } catch (err) {
-    console.error("[userRoutes] /jobs/:id error:", err.message);
     res.status(500).json({ message: "Failed to fetch job" });
   }
 });
 
 /* ─────────────────────────────────────────────
    POST /api/user/jobs/:id/apply
-   Comprehensive Job Application endpoint.
-   Supports direct PDF resume upload, existing resume
-   selection, screening fields & cover note.
+   Submit application. Supports direct PDF upload
+   OR existing resumeId. Includes automatic shortlisting
+   & status history initialization.
 ───────────────────────────────────────────── */
-router.post("/jobs/:id/apply", upload.single("resumeFile"), async (req, res) => {
+router.post("/jobs/:id/apply", upload.single("resume"), async (req, res) => {
   try {
     const {
       resumeId,
       coverNote,
-      resumeText,
       fullName,
       email,
       phone,
@@ -167,10 +223,18 @@ router.post("/jobs/:id/apply", upload.single("resumeFile"), async (req, res) => 
       experienceYears,
       noticePeriod,
       linkedinUrl,
-      portfolioUrl
+      portfolioUrl,
     } = req.body;
 
-    // Prevent duplicate applications (also enforced by DB UNIQUE constraint)
+    const { data: job } = await supabase
+      .from("jobs")
+      .select("id, skills_required, title, company, recruiter_id")
+      .eq("id", req.params.id)
+      .single();
+
+    if (!job) return res.status(404).json({ message: "Job not found" });
+
+    // Prevent duplicate applications
     const { data: existing } = await supabase
       .from("applications")
       .select("id")
@@ -179,23 +243,14 @@ router.post("/jobs/:id/apply", upload.single("resumeFile"), async (req, res) => 
       .maybeSingle();
 
     if (existing) {
-      return res.status(400).json({ message: "You have already applied for this job" });
+      return res.status(409).json({
+        message: "You have already applied to this job. Check your Applications tab for status.",
+      });
     }
 
-    // Verify job exists and is active
-    const { data: job, error: jobError } = await supabase
-      .from("jobs")
-      .select("id, is_active, skills_required")
-      .eq("id", req.params.id)
-      .single();
-
-    if (jobError || !job || !job.is_active) {
-      return res.status(404).json({ message: "Job not found or inactive" });
-    }
-
-    let finalResumeId = resumeId || null;
-    let textToAnalyze = resumeText || "";
     let atsScore = 0;
+    let finalResumeId = resumeId || null;
+    let textToAnalyze = "";
 
     // Direct PDF Upload inside Apply Modal
     if (req.file) {
@@ -206,7 +261,6 @@ router.post("/jobs/:id/apply", upload.single("resumeFile"), async (req, res) => 
       const analysis = await analyzeResume(textToAnalyze, skillsStr);
       atsScore = analysis.atsScore || 0;
 
-      // Save uploaded resume into database
       const { data: newResume } = await supabase
         .from("resumes")
         .insert({
@@ -241,7 +295,6 @@ router.post("/jobs/:id/apply", upload.single("resumeFile"), async (req, res) => 
       atsScore = result.atsScore || 0;
     }
 
-    // Format structured candidate information into cover_note payload
     let fullNote = "";
     if (fullName || email || phone || location || experienceYears || noticePeriod || linkedinUrl || portfolioUrl) {
       fullNote += `--- APPLICANT INFORMATION ---\n`;
@@ -257,8 +310,15 @@ router.post("/jobs/:id/apply", upload.single("resumeFile"), async (req, res) => 
     }
     fullNote += coverNote || "No cover note provided.";
 
-    // Automatic Shortlisting: if skills match JD perfectly (ATS >= 70%), auto-shortlist!
     const autoStatus = atsScore >= 70 ? "shortlisted" : "applied";
+    const initialHistory = [
+      {
+        status: autoStatus === "shortlisted" ? "Shortlisted" : "Applied",
+        timestamp: new Date().toISOString(),
+        updatedBy: autoStatus === "shortlisted" ? "AI ATS Engine" : "Candidate",
+      },
+    ];
+    fullNote += `\n\n[STATUS_HISTORY: ${JSON.stringify(initialHistory)}]`;
 
     const { data: application, error } = await supabase
       .from("applications")
@@ -275,6 +335,14 @@ router.post("/jobs/:id/apply", upload.single("resumeFile"), async (req, res) => 
 
     if (error) throw error;
 
+    // Send confirmation notification
+    await notificationRoutes.addStatusNotification(
+      req.user.id,
+      autoStatus === "shortlisted" ? "Application Submitted & Shortlisted! ⭐" : "Application Submitted ✅",
+      `Your application for ${job.title} at ${job.company} was received successfully.`,
+      `/dashboard/user`
+    );
+
     res.status(201).json({
       message: atsScore >= 70
         ? "Application submitted! High skill match — automatically shortlisted! ⭐"
@@ -283,6 +351,7 @@ router.post("/jobs/:id/apply", upload.single("resumeFile"), async (req, res) => 
         _id:       application.id,
         atsScore:  application.ats_score,
         status:    application.status,
+        statusHistory: initialHistory,
         createdAt: application.created_at,
       },
     });
@@ -295,7 +364,7 @@ router.post("/jobs/:id/apply", upload.single("resumeFile"), async (req, res) => 
 /* ─────────────────────────────────────────────
    GET /api/user/applications
    All applications by the logged-in user,
-   with job details joined.
+   with job details & live Status Timeline audit trail
 ───────────────────────────────────────────── */
 router.get("/applications", async (req, res) => {
   try {
@@ -309,10 +378,13 @@ router.get("/applications", async (req, res) => {
 
     const applications = data.map(a => {
       const m = a.cover_note ? a.cover_note.match(/\[REJECTION REASON: (.*?)\]/s) : null;
+      const history = getStatusHistory(a);
+
       return {
         _id:       a.id,
         atsScore:  a.ats_score,
         status:    a.status,
+        statusHistory: history,
         rejectionReason: m ? m[1] : null,
         coverNote: a.cover_note,
         createdAt: a.created_at,

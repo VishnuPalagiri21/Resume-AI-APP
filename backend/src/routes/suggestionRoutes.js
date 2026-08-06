@@ -1,11 +1,12 @@
 const express = require("express");
 const router = express.Router();
 const { analyzeResume } = require("../utils/atsEngine");
+const { verifyToken } = require("../middleware/authMiddleware");
 
 
-// AI SUGGESTION ROUTE  (public — no auth needed, suggestions are stateless)
+// AI SUGGESTION ROUTE  (authenticated — prevents unauthenticated Gemini API abuse)
 
-router.post("/generate", async (req, res) => {
+router.post("/generate", verifyToken, async (req, res) => {
 
   try {
 

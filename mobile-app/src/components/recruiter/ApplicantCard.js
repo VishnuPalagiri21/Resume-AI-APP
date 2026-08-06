@@ -49,22 +49,33 @@ export const ApplicantCard = ({ applicant, onUpdateStatus }) => {
       {onUpdateStatus ? (
         <View style={styles.actionsRow}>
           <TouchableOpacity
-            style={[styles.actionBtn, styles.shortlistBtn]}
-            onPress={() => onUpdateStatus(applicant._id, 'shortlisted')}
+            style={[styles.actionBtn, styles.reviewBtn]}
+            onPress={() => onUpdateStatus(applicant._id || applicant.id, 'under_review')}
+            activeOpacity={0.8}
           >
-            <Text style={styles.shortlistText}>⭐ Shortlist</Text>
+            <Text style={styles.reviewText}>🔎 Review</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.shortlistBtn]}
+            onPress={() => onUpdateStatus(applicant._id || applicant.id, 'shortlisted')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.shortlistText}>⭐ Short</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.actionBtn, styles.selectBtn]}
-            onPress={() => onUpdateStatus(applicant._id, 'selected')}
+            onPress={() => onUpdateStatus(applicant._id || applicant.id, 'selected')}
+            activeOpacity={0.8}
           >
             <Text style={styles.selectText}>🎉 Select</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.actionBtn, styles.rejectBtn]}
-            onPress={() => onUpdateStatus(applicant._id, 'rejected')}
+            onPress={() => onUpdateStatus(applicant._id || applicant.id, 'rejected')}
+            activeOpacity={0.8}
           >
             <Text style={styles.rejectText}>✖ Reject</Text>
           </TouchableOpacity>
@@ -77,11 +88,12 @@ export const ApplicantCard = ({ applicant, onUpdateStatus }) => {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: theme.colors.cardBg,
-    borderColor: theme.colors.cardBorder,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
     borderWidth: 1,
-    borderRadius: theme.borderRadius.md,
-    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.xl,
+    padding: theme.spacing.lg,
     marginBottom: theme.spacing.md,
+    ...theme.shadows.sm,
   },
   header: {
     flexDirection: 'row',
@@ -89,9 +101,10 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   name: {
-    fontSize: theme.fontSize.lg,
-    fontWeight: 'bold',
+    fontSize: theme.fontSize.md,
+    fontWeight: '800',
     color: theme.colors.textPrimary,
+    letterSpacing: -0.3,
   },
   email: {
     fontSize: theme.fontSize.xs,
@@ -105,7 +118,7 @@ const styles = StyleSheet.create({
   },
   atsContainer: {
     backgroundColor: 'rgba(139, 92, 246, 0.15)',
-    borderColor: theme.colors.primary,
+    borderColor: 'rgba(139, 92, 246, 0.3)',
     borderWidth: 1,
     borderRadius: theme.borderRadius.md,
     paddingHorizontal: 10,
@@ -113,12 +126,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   atsScore: {
-    fontSize: theme.fontSize.lg,
-    fontWeight: 'bold',
+    fontSize: theme.fontSize.md,
+    fontWeight: '900',
     color: theme.colors.primaryLight,
   },
   atsLabel: {
-    fontSize: 9,
+    fontSize: 8,
+    fontWeight: '800',
     color: theme.colors.textMuted,
     textTransform: 'uppercase',
   },
@@ -126,73 +140,93 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.xs,
     color: theme.colors.textSecondary,
     marginVertical: 4,
+    fontWeight: '600',
   },
   noteBox: {
-    backgroundColor: 'rgba(15, 23, 42, 0.5)',
-    padding: 8,
-    borderRadius: theme.borderRadius.sm,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+    borderWidth: 1,
+    padding: 10,
+    borderRadius: theme.borderRadius.md,
     marginVertical: 6,
   },
   noteLabel: {
     fontSize: theme.fontSize.xs,
-    fontWeight: '600',
+    fontWeight: '700',
     color: theme.colors.textSecondary,
     marginBottom: 2,
   },
   noteText: {
     fontSize: theme.fontSize.xs,
     color: theme.colors.textMuted,
+    lineHeight: 18,
   },
   rejectionBox: {
     backgroundColor: 'rgba(239, 68, 68, 0.12)',
-    padding: 6,
-    borderRadius: theme.borderRadius.sm,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+    borderWidth: 1,
+    padding: 8,
+    borderRadius: theme.borderRadius.md,
     marginVertical: 4,
   },
   rejectionText: {
     fontSize: theme.fontSize.xs,
-    color: theme.colors.danger,
+    color: theme.colors.dangerText,
+    fontWeight: '600',
   },
   actionsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: theme.spacing.sm,
+    paddingTop: theme.spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.06)',
     gap: 6,
   },
   actionBtn: {
     flex: 1,
     paddingVertical: 8,
-    borderRadius: theme.borderRadius.sm,
+    borderRadius: theme.borderRadius.full,
     alignItems: 'center',
+  },
+  reviewBtn: {
+    backgroundColor: 'rgba(249, 115, 22, 0.15)',
+    borderColor: 'rgba(249, 115, 22, 0.3)',
+    borderWidth: 1,
+  },
+  reviewText: {
+    color: '#fb923c',
+    fontSize: theme.fontSize.xs,
+    fontWeight: '800',
   },
   shortlistBtn: {
     backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    borderColor: theme.colors.success,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
     borderWidth: 1,
   },
   shortlistText: {
-    color: theme.colors.success,
+    color: theme.colors.successText,
     fontSize: theme.fontSize.xs,
-    fontWeight: '600',
+    fontWeight: '800',
   },
   selectBtn: {
-    backgroundColor: 'rgba(59, 130, 246, 0.15)',
-    borderColor: theme.colors.accent,
+    backgroundColor: 'rgba(6, 182, 212, 0.15)',
+    borderColor: 'rgba(6, 182, 212, 0.3)',
     borderWidth: 1,
   },
   selectText: {
-    color: theme.colors.accent,
+    color: theme.colors.accentCyan,
     fontSize: theme.fontSize.xs,
-    fontWeight: '600',
+    fontWeight: '800',
   },
   rejectBtn: {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-    borderColor: theme.colors.danger,
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    borderColor: 'rgba(239, 68, 68, 0.3)',
     borderWidth: 1,
   },
   rejectText: {
-    color: theme.colors.danger,
+    color: theme.colors.dangerText,
     fontSize: theme.fontSize.xs,
-    fontWeight: '600',
+    fontWeight: '800',
   },
 });

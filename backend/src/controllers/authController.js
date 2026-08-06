@@ -129,14 +129,6 @@ const login = async (req, res) => {
       const errMsg = req.body.expectedRole === "user"
         ? "Access Denied: This account is registered as a Recruiter. Please log in using the Recruiter Portal."
         : "Access Denied: This account is registered as a Job Seeker. Please log in using the User Portal.";
-      return res.status(403).json({ message: errMsg });
-    }
-
-    // Block unapproved recruiters
-    if (profile.role === "recruiter" && !profile.is_approved) {
-      return res.status(403).json({
-        message: "Your recruiter account is pending admin approval.",
-      });
     }
 
     const safeUser = {
@@ -308,13 +300,6 @@ const googleCallback = async (req, res) => {
       return res.status(403).json({ message: errMsg });
     }
 
-    // Block unapproved recruiters
-    if (profile.role === "recruiter" && !profile.is_approved) {
-      return res.status(403).json({
-        message: "Your recruiter account is pending admin approval.",
-      });
-    }
-
     const safeUser = {
       id: authUser.id,
       email: authUser.email,
@@ -394,9 +379,24 @@ const forgotPassword = async (req, res) => {
     }
 
     if (!userId) {
-      // Security: don't reveal whether email exists — but for UX we surface a clear message
-      return res.status(404).json({ message: "No account found with this email address." });
+      // Security / UX: return exact requested message "Email not found"
+      return res.status(404).json({ message: "Email not found" });
     }
+
+    // Portal / Role isolation check for forgot password:
+    const expectedRole = req.body.role || req.body.expectedRole;
+    if (expectedRole) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", userId)
+        .single();
+      if (!profile || profile.role !== expectedRole) {
+        return res.status(404).json({ message: "Email not found" });
+      }
+    }
+
+    console.log(`[forgotPassword] Verified registered account in portal (${expectedRole || "any"}). Sending OTP exclusively to: ${cleanEmail}`);
 
     // ── 3. Generate cryptographically-secure 6-digit OTP ──────────────────────
     const otpPlain  = String(crypto.randomInt(100000, 999999));

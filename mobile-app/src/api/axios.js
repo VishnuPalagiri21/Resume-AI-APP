@@ -4,7 +4,12 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
 // Dynamic development host resolution for Web, Physical Phones (Expo Go), Android Emulator, and iOS
-const getBaseUrl = () => {
+export const getBaseUrl = () => {
+  // 1. Allow explicit override via Expo public env variable
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL;
+  }
+
   if (Platform.OS === 'web') {
     if (typeof window !== 'undefined' && window.location) {
       const hostname = window.location.hostname || 'localhost';
@@ -13,7 +18,7 @@ const getBaseUrl = () => {
     return 'http://localhost:5000';
   }
 
-  // Detect developer PC host IP dynamically from Expo server configuration
+  // 2. Detect developer PC host IP dynamically from Expo server configuration
   const debuggerHost =
     Constants.expoConfig?.hostUri ||
     Constants.manifest?.debuggerHost ||

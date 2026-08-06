@@ -117,16 +117,6 @@ export default function EditorToolbar({
 
         <div style={{ width: "1px", height: "20px", background: "rgba(255,255,255,0.1)" }} />
 
-        {/* AI Assistant */}
-        <button
-          id="editor-ai-btn"
-          className="btn editor-toolbar-btn editor-toolbar-btn-ai"
-          onClick={() => onOpenAI()}
-          title="AI Assistant — ATS scoring & resume rewrite"
-        >
-          ✨ AI Assistant
-        </button>
-
         {/* Compile */}
         <button
           id="editor-compile-btn"

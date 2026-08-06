@@ -1,35 +1,49 @@
 import React, { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import axios from "axios";
 
 const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
 export default function ForgotPassword() {
-  const [email, setEmail]     = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState("");
-  const navigate              = useNavigate();
+  const [email, setEmail]       = useState("");
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState("");
+  const [isEditable, setIsEditable] = useState(false);
+  const [searchParams]          = useSearchParams();
+  const role                    = searchParams.get("role") || "user";
+  const navigate                = useNavigate();
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     setError("");
+
+    const exactEmail = email.trim();
+    if (!exactEmail) {
+      setError("Please enter your registered email address.");
+      return;
+    }
+
     setLoading(true);
 
     try {
       const res = await axios.post(`${API_BASE}/api/auth/forgot-password`, {
-        email: email.trim(),
+        email: exactEmail,
+        role,
       });
 
       if (res.data.success) {
-        // Navigate to OTP verification page — OTP is sent via email only
-        const params = new URLSearchParams({ email: email.trim() });
+        // Navigate automatically to OTP verification page — OTP is sent via SMTP only
+        const params = new URLSearchParams({
+          email: exactEmail,
+          role,
+        });
         if (res.data.previewUrl) params.set("previewUrl", res.data.previewUrl);
         navigate(`/verify-otp?${params.toString()}`);
       }
     } catch (err) {
       setError(
         err.response?.data?.message ||
-          "Failed to send verification code. Please check your email address."
+          "Email not found"
       );
     } finally {
       setLoading(false);
@@ -44,10 +58,9 @@ export default function ForgotPassword() {
           <span style={styles.icon}>🔐</span>
         </div>
 
-        <h1 style={styles.title}>Forgot Password?</h1>
+        <h1 style={styles.title}>Reset your password</h1>
         <p style={styles.sub}>
-          Enter your registered email address and we&rsquo;ll send a
-          <strong style={{ color: "#a78bfa" }}> 6-digit verification code</strong> to reset your password.
+          Enter your registered email address and we&rsquo;ll send a verification OTP to reset your password.
         </p>
 
         {error && (
@@ -56,17 +69,28 @@ export default function ForgotPassword() {
           </div>
         )}
 
-        <form style={styles.form} onSubmit={handleSubmit}>
+        <div style={styles.form}>
           <div className="form-group">
             <label className="form-label" style={{ color: "#cbd5e1" }}>
-              Registered Email Address
+              Email Address
             </label>
             <input
               className="form-input user"
               type="email"
+              name="forgot_password_exact_email_no_autofill"
+              id="forgot_password_exact_email_no_autofill"
+              autoComplete="off"
+              spellCheck="false"
+              autoCorrect="off"
+              autoCapitalize="none"
+              readOnly={!isEditable}
               placeholder="you@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              onFocus={() => setIsEditable(true)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSubmit(e);
+              }}
               required
               autoFocus
               style={{
@@ -82,7 +106,8 @@ export default function ForgotPassword() {
           </div>
 
           <button
-            type="submit"
+            type="button"
+            onClick={handleSubmit}
             className="btn btn-user"
             style={{
               width: "100%",
@@ -100,13 +125,13 @@ export default function ForgotPassword() {
             }}
             disabled={loading}
           >
-            {loading ? "Sending Verification Code..." : "Send Verification Code 🚀"}
+            {loading ? "Sending OTP..." : "Send OTP"}
           </button>
-        </form>
+        </div>
 
         <div style={{ textAlign: "center", marginTop: "16px" }}>
           <Link
-            to="/auth/user"
+            to={role === "recruiter" ? "/recruiter" : "/"}
             style={{
               color: "#94a3b8",
               fontSize: "0.85rem",
@@ -114,7 +139,7 @@ export default function ForgotPassword() {
               fontWeight: 500,
             }}
           >
-            ← Back to Login
+            {role === "recruiter" ? "← Back to Recruiter Login" : "← Back to Candidate Login"}
           </Link>
         </div>
       </div>

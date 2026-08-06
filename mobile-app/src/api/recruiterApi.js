@@ -36,4 +36,16 @@ export const recruiterApi = {
     });
     return data;
   },
+  getAllApplicants: async (params = {}) => {
+    const { data } = await API.get('/api/recruiter/applicants/all', { params });
+    return data;
+  },
+  getSelectedCandidates: async () => {
+    const { data } = await API.get('/api/recruiter/selected');
+    return data;
+  },
+  getRejectedCandidates: async () => {
+    const { data } = await API.get('/api/recruiter/rejected');
+    return data;
+  },
 };

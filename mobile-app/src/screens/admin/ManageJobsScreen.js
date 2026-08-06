@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, RefreshControl } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../../styles/theme';
 import { globalStyles } from '../../styles/globalStyles';
 import { Header } from '../../components/common/Header';
@@ -26,15 +27,15 @@ export const ManageJobsScreen = () => {
   }, []);
 
   return (
-    <View style={globalStyles.container}>
+    <SafeAreaView style={globalStyles.container}>
       <Header title="All Platform Jobs 📋" subtitle="Monitor all job postings" />
       <FlatList
         data={jobs}
-        keyExtractor={(item) => item._id}
+        keyExtractor={(item) => item._id || item.id || Math.random().toString()}
         contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchJobs} tintColor={theme.colors.danger} />}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchJobs} tintColor={theme.colors.warning} />}
         renderItem={({ item }) => (
-          <View style={globalStyles.card}>
+          <View style={styles.jobCard}>
             <View style={globalStyles.rowBetween}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.title}>{item.title}</Text>
@@ -45,10 +46,12 @@ export const ManageJobsScreen = () => {
                   👤 Posted by: {item.recruiterId?.fullName || 'Recruiter'}
                 </Text>
               </View>
-              <Text style={styles.location}>📍 {item.location || 'Remote'}</Text>
+              <View style={styles.locationPill}>
+                <Text style={styles.locationText}>📍 {item.location || 'Remote'}</Text>
+              </View>
             </View>
             <Text style={styles.date}>
-              Posted: {new Date(item.createdAt).toLocaleDateString()}
+              Posted {new Date(item.createdAt || Date.now()).toLocaleDateString()}
             </Text>
           </View>
         )}
@@ -60,22 +63,34 @@ export const ManageJobsScreen = () => {
           )
         }
       />
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   list: {
     padding: theme.spacing.md,
+    paddingBottom: theme.spacing.xxl,
+  },
+  jobCard: {
+    backgroundColor: theme.colors.cardBg,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderRadius: theme.borderRadius.xl,
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.md,
+    ...theme.shadows.sm,
   },
   title: {
     fontSize: theme.fontSize.md,
-    fontWeight: 'bold',
+    fontWeight: '800',
     color: theme.colors.textPrimary,
+    letterSpacing: -0.3,
   },
   company: {
     fontSize: theme.fontSize.xs,
     color: theme.colors.primaryLight,
+    fontWeight: '700',
     marginTop: 2,
   },
   recruiter: {
@@ -83,14 +98,26 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     marginTop: 2,
   },
-  location: {
+  locationPill: {
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: theme.borderRadius.full,
+  },
+  locationText: {
     fontSize: theme.fontSize.xs,
     color: theme.colors.textMuted,
+    fontWeight: '600',
   },
   date: {
     fontSize: theme.fontSize.xs,
     color: theme.colors.textMuted,
     marginTop: theme.spacing.xs,
+    paddingTop: theme.spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.06)',
   },
   emptyBox: {
     padding: theme.spacing.xl,

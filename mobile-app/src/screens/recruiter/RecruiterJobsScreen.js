@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, RefreshControl, TouchableOpacity, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../../styles/theme';
 import { globalStyles } from '../../styles/globalStyles';
 import { Header } from '../../components/common/Header';
@@ -87,7 +88,7 @@ export const RecruiterJobsScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={globalStyles.container}>
+    <SafeAreaView style={globalStyles.container}>
       <Header title="Job Postings 💼" subtitle="Manage your open positions" />
       <View style={styles.topAction}>
         <CustomButton
@@ -108,37 +109,35 @@ export const RecruiterJobsScreen = ({ navigation }) => {
 
           <View style={{ flexDirection: 'row', gap: 8, marginTop: theme.spacing.md }}>
             <CustomButton title="Cancel" variant="outline" onPress={() => setShowCreateModal(false)} style={{ flex: 1 }} />
-            <CustomButton title="Publish Job" variant="secondary" onPress={handlePostJob} loading={posting} style={{ flex: 1 }} />
+            <CustomButton title={posting ? 'Publishing...' : 'Publish Job'} variant="secondary" onPress={handlePostJob} loading={posting} style={{ flex: 1 }} />
           </View>
         </View>
       ) : null}
 
       <FlatList
         data={jobs}
-        keyExtractor={(item) => item._id}
+        keyExtractor={(item) => item._id || item.id || Math.random().toString()}
         contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchJobs} tintColor={theme.colors.accent} />}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchJobs} tintColor={theme.colors.primaryLight} />}
         renderItem={({ item }) => (
-          <View style={globalStyles.card}>
+          <View style={styles.jobCard}>
             <View style={globalStyles.rowBetween}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.jobTitle}>{item.title}</Text>
-                <Text style={styles.location}>📍 {item.location || 'Remote'}</Text>
+                <Text style={styles.company}>🏢 {item.company}</Text>
+                <Text style={styles.location}>📍 {item.location} {item.salaryRange ? `• 💰 ${item.salaryRange}` : ''}</Text>
               </View>
-              <Text style={styles.salary}>{item.salaryRange || 'Competitive'}</Text>
             </View>
 
-            <Text style={styles.desc} numberOfLines={2}>{item.description}</Text>
-
-            <View style={styles.actionsRow}>
+            <View style={styles.actionRow}>
               <TouchableOpacity
                 style={styles.viewApplicantsBtn}
-                onPress={() => navigation.navigate('JobApplicants', { jobId: item._id, jobTitle: item.title })}
+                onPress={() => navigation.navigate('JobApplicants', { jobId: item._id || item.id, jobTitle: item.title })}
               >
                 <Text style={styles.viewApplicantsText}>👥 View Ranked Applicants →</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDeleteJob(item._id)}>
+              <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDeleteJob(item._id || item.id)}>
                 <Text style={styles.deleteText}>🗑️ Delete</Text>
               </TouchableOpacity>
             </View>
@@ -153,80 +152,106 @@ export const RecruiterJobsScreen = ({ navigation }) => {
           )
         }
       />
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   topAction: {
     padding: theme.spacing.md,
-    backgroundColor: theme.colors.cardBg,
+    backgroundColor: theme.colors.bgSecondary,
     borderBottomWidth: 1,
-    borderBottomColor: theme.colors.cardBorder,
+    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
   },
   list: {
     padding: theme.spacing.md,
+    paddingBottom: theme.spacing.xxl,
   },
   modalBox: {
-    backgroundColor: 'rgba(59, 130, 246, 0.12)',
-    borderColor: theme.colors.accent,
+    backgroundColor: 'rgba(6, 182, 212, 0.12)',
+    borderColor: 'rgba(6, 182, 212, 0.4)',
     borderWidth: 1.5,
-    borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.xl,
+    padding: theme.spacing.lg,
     margin: theme.spacing.md,
+    ...theme.shadows.glowCyan,
   },
   modalTitle: {
     fontSize: theme.fontSize.lg,
-    fontWeight: 'bold',
+    fontWeight: '800',
     color: theme.colors.textPrimary,
-    marginBottom: theme.spacing.xs,
+    marginBottom: theme.spacing.sm,
+    letterSpacing: -0.3,
+  },
+  jobCard: {
+    backgroundColor: theme.colors.cardBg,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderRadius: theme.borderRadius.xl,
+    padding: theme.spacing.lg,
+    marginBottom: theme.spacing.md,
+    ...theme.shadows.sm,
   },
   jobTitle: {
-    fontSize: theme.fontSize.lg,
-    fontWeight: 'bold',
+    fontSize: theme.fontSize.md,
+    fontWeight: '800',
     color: theme.colors.textPrimary,
+    letterSpacing: -0.3,
   },
   location: {
     fontSize: theme.fontSize.xs,
     color: theme.colors.textMuted,
     marginTop: 2,
   },
-  salary: {
-    fontSize: theme.fontSize.xs,
-    color: theme.colors.success,
-    fontWeight: 'bold',
+  salaryBadge: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: theme.borderRadius.full,
+  },
+  salaryText: {
+    fontSize: 10,
+    color: theme.colors.successText,
+    fontWeight: '800',
   },
   desc: {
     fontSize: theme.fontSize.sm,
     color: theme.colors.textSecondary,
     marginVertical: theme.spacing.sm,
+    lineHeight: 20,
   },
   actionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: theme.spacing.xs,
+    paddingTop: theme.spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.06)',
   },
   viewApplicantsBtn: {
     backgroundColor: 'rgba(139, 92, 246, 0.15)',
-    borderColor: theme.colors.primary,
+    borderColor: 'rgba(139, 92, 246, 0.3)',
     borderWidth: 1,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: theme.borderRadius.sm,
+    borderRadius: theme.borderRadius.full,
   },
   viewApplicantsText: {
     color: theme.colors.primaryLight,
     fontSize: theme.fontSize.xs,
-    fontWeight: '600',
+    fontWeight: '800',
   },
   deleteBtn: {
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
   deleteText: {
-    color: theme.colors.danger,
+    color: theme.colors.dangerText,
     fontSize: theme.fontSize.xs,
+    fontWeight: '700',
   },
   emptyBox: {
     padding: theme.spacing.xl,
@@ -235,7 +260,7 @@ const styles = StyleSheet.create({
   emptyTitle: {
     color: theme.colors.textPrimary,
     fontSize: theme.fontSize.lg,
-    fontWeight: 'bold',
+    fontWeight: '800',
   },
   emptyDesc: {
     color: theme.colors.textMuted,

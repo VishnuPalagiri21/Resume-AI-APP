@@ -1,7 +1,5 @@
 import React from 'react';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Text } from 'react-native';
-import { theme } from '../styles/theme';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { AdminDashboardScreen } from '../screens/admin/AdminDashboardScreen';
 import { ManageUsersScreen } from '../screens/admin/ManageUsersScreen';
@@ -9,64 +7,30 @@ import { ManageRecruitersScreen } from '../screens/admin/ManageRecruitersScreen'
 import { ManageJobsScreen } from '../screens/admin/ManageJobsScreen';
 import { ProfileScreen } from '../screens/common/ProfileScreen';
 
-const Tab = createBottomTabNavigator();
+const Stack = createNativeStackNavigator();
 
 export const AdminNavigator = () => {
   return (
-    <Tab.Navigator
+    <Stack.Navigator
+      initialRouteName="AdminDashboard"
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: theme.colors.danger,
-        tabBarInactiveTintColor: theme.colors.textMuted,
-        tabBarStyle: {
-          backgroundColor: theme.colors.cardBg,
-          borderTopColor: theme.colors.cardBorder,
-          height: 60,
-          paddingBottom: 8,
-          paddingTop: 4,
-        },
+        animation: 'fade',
       }}
     >
-      <Tab.Screen
-        name="AdminDashboardTab"
-        component={AdminDashboardScreen}
-        options={{
-          tabBarLabel: 'Overview',
-          tabBarIcon: ({ focused }) => <Text style={{ fontSize: 20 }}>{focused ? '🛡️' : '📈'}</Text>,
-        }}
-      />
-      <Tab.Screen
-        name="AdminRecruitersTab"
-        component={ManageRecruitersScreen}
-        options={{
-          tabBarLabel: 'Recruiters',
-          tabBarIcon: ({ focused }) => <Text style={{ fontSize: 20 }}>{focused ? '🏢' : '🏬'}</Text>,
-        }}
-      />
-      <Tab.Screen
-        name="AdminUsersTab"
-        component={ManageUsersScreen}
-        options={{
-          tabBarLabel: 'Candidates',
-          tabBarIcon: ({ focused }) => <Text style={{ fontSize: 20 }}>{focused ? '👥' : '👤'}</Text>,
-        }}
-      />
-      <Tab.Screen
-        name="AdminJobsTab"
-        component={ManageJobsScreen}
-        options={{
-          tabBarLabel: 'Jobs',
-          tabBarIcon: ({ focused }) => <Text style={{ fontSize: 20 }}>{focused ? '📋' : '📁'}</Text>,
-        }}
-      />
-      <Tab.Screen
-        name="ProfileTab"
-        component={ProfileScreen}
-        options={{
-          tabBarLabel: 'Profile',
-          tabBarIcon: ({ focused }) => <Text style={{ fontSize: 20 }}>{focused ? '👤' : '👤'}</Text>,
-        }}
-      />
-    </Tab.Navigator>
+      {/* ── Primary Sidebar Routes ── */}
+      <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} />
+      <Stack.Screen name="AdminRecruiters" component={ManageRecruitersScreen} />
+      <Stack.Screen name="AdminUsers" component={ManageUsersScreen} />
+      <Stack.Screen name="AdminJobs" component={ManageJobsScreen} />
+      <Stack.Screen name="AdminProfile" component={ProfileScreen} />
+
+      {/* ── Backward Compatibility Aliases ── */}
+      <Stack.Screen name="AdminDashboardTab" component={AdminDashboardScreen} />
+      <Stack.Screen name="AdminRecruitersTab" component={ManageRecruitersScreen} />
+      <Stack.Screen name="AdminUsersTab" component={ManageUsersScreen} />
+      <Stack.Screen name="AdminJobsTab" component={ManageJobsScreen} />
+      <Stack.Screen name="ProfileTab" component={ProfileScreen} />
+    </Stack.Navigator>
   );
 };

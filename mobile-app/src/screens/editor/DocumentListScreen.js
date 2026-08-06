@@ -1,20 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, RefreshControl, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, RefreshControl, TouchableOpacity, Alert, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../../styles/theme';
 import { globalStyles } from '../../styles/globalStyles';
 import { Header } from '../../components/common/Header';
 import { CustomButton } from '../../components/common/CustomButton';
-import { CustomInput } from '../../components/common/CustomInput';
 import { editorApi } from '../../api/editorApi';
 
 export const DocumentListScreen = ({ navigation }) => {
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showAiModal, setShowAiModal] = useState(false);
-  const [resumeText, setResumeText] = useState('');
-  const [jobDescription, setJobDescription] = useState('');
-  const [aiTitle, setAiTitle] = useState('');
-  const [generating, setGenerating] = useState(false);
 
   const fetchDocuments = async () => {
     setLoading(true);
@@ -32,106 +27,98 @@ export const DocumentListScreen = ({ navigation }) => {
     fetchDocuments();
   }, []);
 
-  const handleAiGenerate = async () => {
-    if (!resumeText) {
-      Alert.alert('Required', 'Please enter your current resume details/text.');
-      return;
-    }
-
-    setGenerating(true);
+  const confirmDelete = async (docId) => {
     try {
-      const data = await editorApi.generateAiDocument(resumeText, jobDescription, aiTitle || 'AI Tailored Resume');
-      setShowAiModal(false);
-      fetchDocuments();
-      if (data.document) {
-        navigation.navigate('LatexEditor', { docId: data.document._id });
-      }
+      await editorApi.deleteDocument(docId);
+      setDocuments((prev) => prev.filter((d) => (d._id || d.id) !== docId));
     } catch (err) {
-      Alert.alert('Error', err.message || 'AI Generation failed');
-    } finally {
-      setGenerating(false);
+      Alert.alert('Error', err.message || 'Failed to delete document');
+    }
+  };
+
+  const handleDeleteDocument = (item, e) => {
+    if (e && e.stopPropagation) e.stopPropagation();
+    const docId = item._id || item.id;
+    if (!docId) return;
+
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.confirm(`Are you sure you want to delete "${item.title}"?`)) {
+        confirmDelete(docId);
+      }
+    } else {
+      Alert.alert(
+        'Delete Resume',
+        `Are you sure you want to delete "${item.title}"?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Delete', style: 'destructive', onPress: () => confirmDelete(docId) },
+        ]
+      );
     }
   };
 
   return (
-    <View style={globalStyles.container}>
+    <SafeAreaView style={globalStyles.container}>
       <Header title="LaTeX Resume Editor 📝" subtitle="Build & compile tailored LaTeX resumes" />
       <View style={styles.topActions}>
         <CustomButton
-          title="+ New from Template"
+          title="+ New Template"
           onPress={() => navigation.navigate('TemplateSelect')}
-          style={{ flex: 1, marginRight: 6 }}
-        />
-        <CustomButton
-          title="✨ AI Tailor"
-          variant="secondary"
-          onPress={() => setShowAiModal(true)}
-          style={{ flex: 1, marginLeft: 6 }}
+          style={{ flex: 1 }}
         />
       </View>
 
-      {showAiModal ? (
-        <View style={styles.aiBox}>
-          <Text style={styles.aiBoxTitle}>✨ AI Resume Tailoring</Text>
-          <CustomInput
-            label="Document Title"
-            placeholder="e.g. Senior Software Engineer Resume"
-            value={aiTitle}
-            onChangeText={setAiTitle}
-          />
-          <CustomInput
-            label="Your Experience & Skills"
-            placeholder="Paste your key experience, achievements, skills..."
-            value={resumeText}
-            onChangeText={setResumeText}
-            multiline
-            numberOfLines={4}
-          />
-          <CustomInput
-            label="Target Job Description (Optional)"
-            placeholder="Paste target job requirements..."
-            value={jobDescription}
-            onChangeText={setJobDescription}
-            multiline
-            numberOfLines={3}
-          />
-          <View style={{ flexDirection: 'row', gap: 8, marginTop: theme.spacing.sm }}>
-            <CustomButton
-              title="Cancel"
-              variant="outline"
-              onPress={() => setShowAiModal(false)}
-              style={{ flex: 1 }}
-            />
-            <CustomButton
-              title="Generate LaTeX"
-              onPress={handleAiGenerate}
-              loading={generating}
-              style={{ flex: 1 }}
-            />
-          </View>
-        </View>
-      ) : null}
-
       <FlatList
         data={documents}
-        keyExtractor={(item) => item._id}
+        keyExtractor={(item) => item._id || item.id || Math.random().toString()}
         contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchDocuments} tintColor={theme.colors.primary} />}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchDocuments} tintColor={theme.colors.primaryLight} />}
         renderItem={({ item }) => (
           <TouchableOpacity
-            style={globalStyles.card}
-            onPress={() => navigation.navigate('LatexEditor', { docId: item._id })}
+            style={styles.docCard}
+            onPress={() => navigation.navigate('LatexEditor', { docId: item._id || item.id })}
             activeOpacity={0.8}
           >
-            <View style={globalStyles.rowBetween}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.docTitle}>📝 {item.title}</Text>
-                <Text style={styles.templateTag}>Template: {item.template}</Text>
-                <Text style={styles.updatedAt}>
-                  Updated: {new Date(item.updatedAt || item.createdAt).toLocaleDateString()}
-                </Text>
+            <View style={styles.thumbBox}>
+              <Text style={{ fontSize: 24 }}>📄</Text>
+              {item.compiledPdfUrl ? (
+                <View style={styles.compiledBadge}>
+                  <Text style={styles.compiledBadgeText}>PDF</Text>
+                </View>
+              ) : null}
+            </View>
+
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={styles.docTitle} numberOfLines={1}>{item.title}</Text>
+              <Text style={styles.templateTag}>Template: {item.template || 'Modern'}</Text>
+              <Text style={styles.updatedAt}>
+                Updated {new Date(item.updatedAt || item.createdAt).toLocaleDateString()}
+              </Text>
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+              {item.compiledPdfUrl ? (
+                <TouchableOpacity
+                  style={styles.pdfPill}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    navigation.navigate('PdfPreview', { pdfUrl: item.compiledPdfUrl, title: item.title });
+                  }}
+                >
+                  <Text style={styles.pdfPillText}>📥 PDF</Text>
+                </TouchableOpacity>
+              ) : null}
+
+              <TouchableOpacity
+                style={styles.deletePill}
+                onPress={(e) => handleDeleteDocument(item, e)}
+              >
+                <Text style={styles.deleteText}>🗑️ Delete</Text>
+              </TouchableOpacity>
+
+              <View style={styles.editPill}>
+                <Text style={styles.editText}>Edit →</Text>
               </View>
-              <Text style={{ color: theme.colors.primaryLight, fontWeight: 'bold' }}>Edit →</Text>
             </View>
           </TouchableOpacity>
         )}
@@ -139,12 +126,12 @@ export const DocumentListScreen = ({ navigation }) => {
           !loading && (
             <View style={styles.emptyBox}>
               <Text style={styles.emptyTitle}>No LaTeX documents yet</Text>
-              <Text style={styles.emptyDesc}>Choose a template or use AI Tailor to create your first LaTeX resume!</Text>
+              <Text style={styles.emptyDesc}>Choose a template to create your first LaTeX resume!</Text>
             </View>
           )
         }
       />
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -152,42 +139,107 @@ const styles = StyleSheet.create({
   topActions: {
     flexDirection: 'row',
     padding: theme.spacing.md,
-    backgroundColor: theme.colors.cardBg,
+    backgroundColor: theme.colors.bgSecondary,
     borderBottomWidth: 1,
-    borderBottomColor: theme.colors.cardBorder,
+    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
   },
   list: {
     padding: theme.spacing.md,
+    paddingBottom: theme.spacing.xxl,
+  },
+  docCard: {
+    backgroundColor: theme.colors.cardBg,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderRadius: theme.borderRadius.xl,
+    padding: theme.spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+    ...theme.shadows.sm,
+  },
+  thumbBox: {
+    width: 48,
+    height: 56,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: 'rgba(139, 92, 246, 0.12)',
+    borderColor: 'rgba(139, 92, 246, 0.3)',
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  compiledBadge: {
+    position: 'absolute',
+    bottom: -4,
+    right: -4,
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    borderColor: 'rgba(16, 185, 129, 0.4)',
+    borderWidth: 1,
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+  },
+  compiledBadgeText: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: theme.colors.successText,
   },
   docTitle: {
-    fontSize: theme.fontSize.lg,
-    fontWeight: 'bold',
+    fontSize: theme.fontSize.md,
+    fontWeight: '800',
     color: theme.colors.textPrimary,
+    letterSpacing: -0.3,
   },
   templateTag: {
     fontSize: theme.fontSize.xs,
-    color: theme.colors.accent,
-    fontWeight: '600',
+    color: theme.colors.primaryLight,
+    fontWeight: '700',
     marginTop: 2,
   },
   updatedAt: {
     fontSize: theme.fontSize.xs,
     color: theme.colors.textMuted,
-    marginTop: 4,
+    marginTop: 2,
   },
-  aiBox: {
+  pdfPill: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderColor: 'rgba(16, 185, 129, 0.35)',
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: theme.borderRadius.full,
+  },
+  pdfPillText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.successText,
+    fontWeight: '800',
+  },
+  editPill: {
     backgroundColor: 'rgba(139, 92, 246, 0.12)',
-    borderColor: theme.colors.primary,
-    borderWidth: 1.5,
-    borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.md,
-    margin: theme.spacing.md,
+    borderColor: 'rgba(139, 92, 246, 0.3)',
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: theme.borderRadius.full,
   },
-  aiBoxTitle: {
-    fontSize: theme.fontSize.lg,
-    fontWeight: 'bold',
+  editText: {
+    fontSize: theme.fontSize.xs,
     color: theme.colors.primaryLight,
-    marginBottom: theme.spacing.xs,
+    fontWeight: '800',
+  },
+  deletePill: {
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    borderColor: 'rgba(239, 68, 68, 0.35)',
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: theme.borderRadius.full,
+  },
+  deleteText: {
+    fontSize: theme.fontSize.xs,
+    color: '#F87171',
+    fontWeight: '800',
   },
   emptyBox: {
     padding: theme.spacing.xl,
@@ -196,7 +248,7 @@ const styles = StyleSheet.create({
   emptyTitle: {
     color: theme.colors.textPrimary,
     fontSize: theme.fontSize.lg,
-    fontWeight: 'bold',
+    fontWeight: '800',
   },
   emptyDesc: {
     color: theme.colors.textMuted,

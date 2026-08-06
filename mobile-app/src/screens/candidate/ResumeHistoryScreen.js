@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, RefreshControl, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../../styles/theme';
 import { globalStyles } from '../../styles/globalStyles';
 import { Header } from '../../components/common/Header';
@@ -26,25 +27,25 @@ export const ResumeHistoryScreen = ({ navigation }) => {
   }, []);
 
   return (
-    <View style={globalStyles.container}>
+    <SafeAreaView style={globalStyles.container}>
       <Header title="Resume History 📋" subtitle="All your analyzed PDF documents" />
       <FlatList
         data={resumes}
-        keyExtractor={(item) => item._id}
+        keyExtractor={(item) => item._id || item.id || Math.random().toString()}
         contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchResumes} tintColor={theme.colors.primary} />}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchResumes} tintColor={theme.colors.primaryLight} />}
         renderItem={({ item }) => (
           <TouchableOpacity
-            style={globalStyles.card}
+            style={styles.resumeCard}
             onPress={() => navigation.navigate('ResumeAnalysisResult', { resume: item })}
             activeOpacity={0.8}
           >
             <View style={globalStyles.rowBetween}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.fileName}>📄 {item.fileName}</Text>
+                <Text style={styles.fileName} numberOfLines={1}>📄 {item.fileName}</Text>
                 <Text style={styles.date}>
-                  {new Date(item.createdAt).toLocaleDateString()} at{' '}
-                  {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {new Date(item.createdAt || Date.now()).toLocaleDateString()} at{' '}
+                  {new Date(item.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </Text>
               </View>
               <View style={styles.scoreBox}>
@@ -62,18 +63,29 @@ export const ResumeHistoryScreen = ({ navigation }) => {
           )
         }
       />
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   list: {
     padding: theme.spacing.md,
+    paddingBottom: theme.spacing.xxl,
+  },
+  resumeCard: {
+    backgroundColor: theme.colors.cardBg,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderRadius: theme.borderRadius.xl,
+    padding: theme.spacing.lg,
+    marginBottom: theme.spacing.md,
+    ...theme.shadows.sm,
   },
   fileName: {
     fontSize: theme.fontSize.md,
-    fontWeight: 'bold',
+    fontWeight: '800',
     color: theme.colors.textPrimary,
+    letterSpacing: -0.3,
   },
   date: {
     fontSize: theme.fontSize.xs,
@@ -82,7 +94,7 @@ const styles = StyleSheet.create({
   },
   scoreBox: {
     backgroundColor: 'rgba(139, 92, 246, 0.15)',
-    borderColor: theme.colors.primary,
+    borderColor: 'rgba(139, 92, 246, 0.3)',
     borderWidth: 1,
     borderRadius: theme.borderRadius.md,
     paddingHorizontal: 12,
@@ -91,11 +103,12 @@ const styles = StyleSheet.create({
   },
   scoreText: {
     fontSize: theme.fontSize.md,
-    fontWeight: 'bold',
+    fontWeight: '900',
     color: theme.colors.primaryLight,
   },
   scoreLabel: {
-    fontSize: 9,
+    fontSize: 8,
+    fontWeight: '800',
     color: theme.colors.textMuted,
     textTransform: 'uppercase',
   },

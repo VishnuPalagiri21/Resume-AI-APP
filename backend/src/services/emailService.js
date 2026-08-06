@@ -1,88 +1,274 @@
 /**
  * Email Service for ResumeAI
- * Sends password reset OTP verification codes via SMTP/Nodemailer
- * Automatically generates a free Ethereal Email test inbox if SMTP is unconfigured,
- * providing a clickable web preview URL to inspect the actual sent email!
+ * Sends OTP verification codes via Gmail SMTP (Nodemailer).
+ *
+ * Configuration is loaded exclusively from environment variables:
+ *   MAIL_SERVER   — SMTP host (e.g. smtp.gmail.com)
+ *   MAIL_PORT     — SMTP port (465 for SSL, 587 for STARTTLS)
+ *   MAIL_USERNAME — Gmail address used to authenticate
+ *   MAIL_PASSWORD — Gmail App Password (NOT the account password)
+ *   MAIL_FROM     — Sender address shown in the email From: header
+ *
+ * Security rules enforced:
+ *   - Credentials are NEVER logged, printed, or included in responses.
+ *   - OTP plain-text is logged to console only (dev visibility), never in responses.
+ *   - All SMTP values come from process.env — nothing is hard-coded.
+ *
+ * Fallback: If MAIL_USERNAME / MAIL_PASSWORD are absent (local dev without
+ * a configured Gmail account), the service automatically falls back to a free
+ * Nodemailer Ethereal test inbox and prints a clickable preview URL in the console.
  */
 const nodemailer = require("nodemailer");
-const { Resend } = require("resend");
+const dns        = require("dns");
 
-// 1. Create Resend client if API key is set in .env (Recommended)
-let resendClient = null;
-if (process.env.RESEND_API_KEY) {
-  resendClient = new Resend(process.env.RESEND_API_KEY);
+/**
+ * Resolve a hostname to its IPv4 address.
+ * This bypasses any system DNS preference for IPv6 and guarantees an IPv4
+ * TCP connection — needed on networks where IPv6 routing is unavailable.
+ *
+ * @param {string} hostname
+ * @returns {Promise<string>} Resolved IPv4 address
+ */
+function resolveIPv4(hostname) {
+  return new Promise((resolve, reject) => {
+    dns.lookup(hostname, { family: 4 }, (err, address) => {
+      if (err) reject(err);
+      else resolve(address);
+    });
+  });
 }
 
-// 2. Create Nodemailer transporter if SMTP environment variables are set (Legacy / Custom SMTP fallback)
-let transporter = null;
-if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
-  transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: process.env.SMTP_PORT || 587,
-    secure: process.env.SMTP_SECURE === "true", // true for port 465, false for 587
+
+// ─── Read Gmail SMTP config from environment ───────────────────────────────
+const MAIL_SERVER   = process.env.MAIL_SERVER   || "";
+const MAIL_PORT     = parseInt(process.env.MAIL_PORT || "465", 10);
+const MAIL_USERNAME = process.env.MAIL_USERNAME || "";
+const MAIL_PASSWORD = process.env.MAIL_PASSWORD || "";
+const MAIL_FROM     = process.env.MAIL_FROM     || MAIL_USERNAME;
+
+// Port 465 → implicit SSL (secure: true).
+// Port 587 → STARTTLS (secure: false, nodemailer upgrades via STARTTLS).
+// Any other port → follow the same rule: 465 = SSL, else STARTTLS.
+const MAIL_SECURE = MAIL_PORT === 465;
+
+/**
+ * Build a Nodemailer transporter for Gmail SMTP.
+ * Resolves MAIL_SERVER to its IPv4 address first, then creates the transport.
+ * Returns null when required credentials are missing (triggers Ethereal fallback).
+ *
+ * @returns {Promise<nodemailer.Transporter | null>}
+ */
+async function createGmailTransporter(port = 465) {
+  const server = process.env.MAIL_SERVER || "smtp.gmail.com";
+  const user = process.env.MAIL_USERNAME;
+  const pass = process.env.MAIL_PASSWORD;
+
+  if (!user || !pass) {
+    return null;
+  }
+
+  let hostAddress = server;
+  try {
+    hostAddress = await resolveIPv4(server);
+  } catch (err) {
+    console.warn(`[EmailService] IPv4 lookup failed for ${server}, using hostname fallback:`, err.message);
+    hostAddress = server;
+  }
+
+  return nodemailer.createTransport({
+    host:   hostAddress,
+    port:   port,
+    secure: port === 465, // true = implicit TLS (port 465), false = STARTTLS (port 587)
     auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
+      user: user,
+      pass: pass,
     },
+    tls: {
+      rejectUnauthorized: false,
+      servername: server,
+    },
+    connectionTimeout: 6000,
+    greetingTimeout: 6000,
+    socketTimeout: 10000,
   });
 }
 
 /**
- * Send password reset verification code email
- * @param {string} email - Recipient email address
- * @param {string} otp - 6-digit verification code
- * @returns {Promise<{success: boolean, previewUrl?: string, devOtp: string}>}
+ * Build the professional HTML email body for an OTP code.
+ *
+ * @param {string} otp       - The 6-digit OTP to display
+ * @param {string} [context] - Optional context label (e.g. "Password Reset")
+ * @returns {string} Full HTML string
  */
-async function sendPasswordResetOtp(email, otp) {
-  const subject = "ResumeAI — Password Reset Verification Code";
+function buildHtmlEmail(otp, context = "Verification") {
+  const year = new Date().getFullYear();
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ResumeAI ${context} Code</title>
+</head>
+<body style="margin:0;padding:0;background-color:#060b0d;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;">
+  <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#060b0d;padding:40px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" cellpadding="0" cellspacing="0" width="600"
+               style="max-width:600px;width:100%;background-color:#0f172a;border-radius:16px;
+                      border:1px solid #1e293b;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.6);">
 
-  const plainText = `
+          <!-- Header -->
+          <tr>
+            <td style="background:linear-gradient(135deg,#1e1b4b 0%,#0f172a 100%);
+                       padding:36px 40px 28px;text-align:center;
+                       border-bottom:1px solid #1e293b;">
+              <div style="display:inline-flex;align-items:center;gap:10px;">
+                <div style="width:40px;height:40px;background:linear-gradient(135deg,#7c3aed,#4f46e5);
+                            border-radius:10px;display:inline-flex;align-items:center;
+                            justify-content:center;font-size:20px;line-height:40px;vertical-align:middle;">
+                  ✦
+                </div>
+                <span style="font-size:26px;font-weight:800;color:#f8fafc;
+                             letter-spacing:-0.5px;vertical-align:middle;">ResumeAI</span>
+              </div>
+              <p style="margin:10px 0 0;font-size:13px;color:#94a3b8;letter-spacing:0.5px;
+                        text-transform:uppercase;font-weight:600;">${context} Code</p>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:40px 40px 32px;">
+              <p style="margin:0 0 8px;font-size:15px;color:#cbd5e1;line-height:1.6;">Hello,</p>
+              <p style="margin:0 0 28px;font-size:15px;color:#cbd5e1;line-height:1.6;">
+                We received a request to verify your <strong style="color:#f8fafc;">ResumeAI</strong>
+                account. Use the code below to complete the process.
+              </p>
+
+              <!-- OTP Box -->
+              <table role="presentation" cellpadding="0" cellspacing="0" width="100%"
+                     style="margin:0 0 28px;">
+                <tr>
+                  <td align="center">
+                    <div style="background-color:#0b1120;border:2px dashed #4f46e5;
+                                border-radius:12px;padding:28px 24px;display:inline-block;
+                                text-align:center;min-width:260px;">
+                      <p style="margin:0 0 6px;font-size:11px;color:#64748b;
+                                letter-spacing:2px;text-transform:uppercase;font-weight:700;">
+                        Your Verification Code
+                      </p>
+                      <p style="margin:0;font-size:42px;font-weight:900;letter-spacing:14px;
+                                color:#818cf8;font-family:'Courier New',Courier,monospace;
+                                line-height:1.2;">
+                        ${otp}
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Expiry Notice -->
+              <table role="presentation" cellpadding="0" cellspacing="0" width="100%"
+                     style="margin:0 0 28px;">
+                <tr>
+                  <td style="background-color:#1e293b;border-left:4px solid #f59e0b;
+                              border-radius:8px;padding:14px 18px;">
+                    <p style="margin:0;font-size:13px;color:#fcd34d;font-weight:600;">
+                      ⏳ This code expires in <strong>5 minutes</strong>.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Security Note -->
+              <table role="presentation" cellpadding="0" cellspacing="0" width="100%"
+                     style="margin:0 0 28px;">
+                <tr>
+                  <td style="background-color:#1a1a2e;border:1px solid #334155;
+                              border-radius:8px;padding:16px 18px;">
+                    <p style="margin:0 0 6px;font-size:13px;color:#94a3b8;font-weight:700;">
+                      🔐 Security Reminder
+                    </p>
+                    <p style="margin:0;font-size:13px;color:#64748b;line-height:1.6;">
+                      ResumeAI will <strong style="color:#94a3b8;">never</strong> ask for this
+                      code via phone or chat. Do not share it with anyone.
+                      If you did not request this verification, please ignore this email —
+                      your account remains secure.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:0;font-size:14px;color:#94a3b8;line-height:1.6;">
+                Thank you for using ResumeAI.<br />
+                <strong style="color:#c4b5fd;">ResumeAI Team</strong>
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color:#0a0f1e;border-top:1px solid #1e293b;
+                       padding:20px 40px;text-align:center;">
+              <p style="margin:0 0 4px;font-size:12px;color:#475569;">
+                This is an automated message from ResumeAI. Please do not reply.
+              </p>
+              <p style="margin:0;font-size:12px;color:#334155;">
+                &copy; ${year} ResumeAI. All rights reserved.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+/**
+ * Build the plain-text fallback version of the OTP email.
+ *
+ * @param {string} otp
+ * @param {string} [context]
+ * @returns {string}
+ */
+function buildPlainTextEmail(otp, context = "Verification") {
+  return `
 Hello,
 
-We received a request to reset your ResumeAI account password.
-
-Your 6-digit verification code is:
+Your ResumeAI ${context} Code is:
 
   ${otp}
 
 This code expires in 5 minutes. Do not share it with anyone.
 
-If you did not request this, please ignore this email.
+If you did not request this verification, please ignore this email.
 
+Thank you,
 ResumeAI Team
-  `.trim();
+`.trim();
+}
 
-  const htmlBody = `
-    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px; background-color: #0f172a; color: #f8fafc; border-radius: 12px; border: 1px solid #1e293b;">
-      <div style="text-align: center; margin-bottom: 24px;">
-        <h2 style="color: #60a5fa; margin: 0; font-size: 24px; font-weight: 700;">ResumeAI</h2>
-        <p style="color: #94a3b8; font-size: 14px; margin-top: 4px;">Password Reset Verification</p>
-      </div>
-      
-      <div style="background-color: #1e293b; padding: 24px; border-radius: 8px; border: 1px solid #334155; margin-bottom: 24px;">
-        <h3 style="color: #f8fafc; margin-top: 0; font-size: 18px;">Your One-Time Verification Code</h3>
-        <p style="color: #cbd5e1; font-size: 14px; line-height: 1.6;">
-          Use the code below to reset your password. Enter it on the verification page.
-        </p>
-        
-        <div style="background-color: #0f172a; border: 2px dashed #3b82f6; border-radius: 8px; padding: 20px; text-align: center; margin: 24px 0;">
-          <p style="color: #64748b; font-size: 12px; margin: 0 0 8px 0; letter-spacing: 1px; text-transform: uppercase;">Verification Code</p>
-          <span style="font-size: 36px; font-weight: 800; letter-spacing: 10px; color: #38bdf8; font-family: monospace;">${otp}</span>
-        </div>
+/**
+ * Send a password-reset OTP email to the given address.
+ *
+ * Used by:  authController.js → forgotPassword()
+ * Signature is unchanged — callers need no modification.
+ *
+ * @param {string} email  - Recipient email address
+ * @param {string} otp    - Plain-text 6-digit OTP (generated by authController)
+ * @returns {Promise<{success: boolean, previewUrl?: string, devOtp: string}>}
+ */
+async function sendPasswordResetOtp(email, otp) {
+  const subject   = "ResumeAI — Password Reset Verification Code";
+  const context   = "Password Reset";
+  const htmlBody  = buildHtmlEmail(otp, context);
+  const plainText = buildPlainTextEmail(otp, context);
 
-        <p style="color: #94a3b8; font-size: 13px; margin: 0; text-align: center;">
-          ⏳ <strong>This code expires in 5 minutes.</strong> For your security, never share this code with anyone.
-        </p>
-      </div>
-
-      <div style="text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #1e293b; padding-top: 16px;">
-        <p style="margin: 4px 0;">If you did not request a password reset, you can safely ignore this email.</p>
-        <p style="margin: 4px 0;">&copy; ${new Date().getFullYear()} ResumeAI Team</p>
-      </div>
-    </div>
-  `;
-
-  // Always log OTP to console in development
+  // ── Dev console log — OTP is shown here for dev convenience.
+  //    The password is NEVER logged.
   const appUrl = process.env.FRONTEND_URL || "http://localhost:3000";
   console.log("==========================================================");
   console.log(`📧 [EmailService] Password Reset OTP for: ${email}`);
@@ -91,59 +277,39 @@ ResumeAI Team
   console.log(`⏰ Expires in: 5 minutes`);
   console.log("==========================================================");
 
-  // 1. [RECOMMENDED] If Resend API Key is configured in .env, send via Resend!
-  if (resendClient) {
-    try {
-      // Send OTP verification email directly to the requested user's email address
-      const targetEmail = email;
-      const displaySubject = subject;
+  // ── 1. Attempt Gmail SMTP delivery (Port 465 SSL, fallback to Port 587 STARTTLS) ────────────────────────────────────────
+  const senderEmail = process.env.MAIL_FROM || process.env.MAIL_USERNAME;
+  const portsToTry = [465, 587];
 
-      const { data, error } = await resendClient.emails.send({
-        from: fromEmail,
-        to: targetEmail,
-        subject: displaySubject,
-        text: plainText,
-        html: htmlBody,
-      });
-
-      if (error) {
-        console.warn("⚠️ [EmailService] Resend API notice:", error.message || error);
-        console.warn("   ℹ️ Falling back to Nodemailer / Ethereal Email preview...");
-      } else {
-        console.log(`✅ [EmailService] Real OTP email successfully sent via Resend to ${targetEmail} (ID: ${data?.id})`);
-        return { success: true };
+  for (const port of portsToTry) {
+    const gmailTransporter = await createGmailTransporter(port);
+    if (gmailTransporter) {
+      try {
+        const info = await gmailTransporter.sendMail({
+          from:    `"ResumeAI Security" <${senderEmail}>`,
+          to:      email,
+          subject,
+          text:    plainText,
+          html:    htmlBody,
+        });
+        console.log(`✅ [EmailService] OTP email sent via Gmail SMTP (Port ${port}) to ${email} (Message ID: ${info.messageId})`);
+        return { success: true, devOtp: otp };
+      } catch (smtpErr) {
+        console.error(`❌ [EmailService] Gmail SMTP error on port ${port}:`, smtpErr.message);
+        // Continue to try next port if available
       }
-    } catch (err) {
-      console.error("❌ [EmailService] Failed to send real email via Resend:", err.message);
-      // Fall through to other providers if Resend fails
     }
   }
 
-  // 2. If real SMTP is configured in .env, send via real SMTP
-  if (transporter) {
-    try {
-      await transporter.sendMail({
-        from: process.env.EMAIL_FROM || `"ResumeAI Team" <no-reply@resumeai.app>`,
-        to: email,
-        subject,
-        text: plainText,
-        html: htmlBody,
-      });
-      console.log(`✅ [EmailService] Real OTP email successfully sent via SMTP to ${email}`);
-      return { success: true, devOtp: otp };
-    } catch (err) {
-      console.error("❌ [EmailService] Failed to send real email via SMTP:", err.message);
-      // Fall through to Ethereal test account if SMTP fails
-    }
-  }
+  console.warn("⚠️  [EmailService] Gmail SMTP delivery failed or not configured. Falling back to Ethereal Email preview...");
 
-  // 3. If neither Resend nor SMTP is configured in .env (or if they failed), use Ethereal Email test account!
+  // ── 2. Ethereal Email fallback (development / unconfigured environments) ──
   try {
-    console.log("⚡ [EmailService] Using Nodemailer Ethereal test account to generate web email preview...");
+    console.log("⚡ [EmailService] Creating Ethereal test account for email preview...");
     const testAccount = await nodemailer.createTestAccount();
     const testTransporter = nodemailer.createTransport({
-      host: testAccount.smtp.host,
-      port: testAccount.smtp.port,
+      host:   testAccount.smtp.host,
+      port:   testAccount.smtp.port,
       secure: testAccount.smtp.secure,
       auth: {
         user: testAccount.user,
@@ -152,25 +318,27 @@ ResumeAI Team
     });
 
     const info = await testTransporter.sendMail({
-      from: `"ResumeAI Test Mailer" <test@ethereal.email>`,
-      to: email,
+      from:    `"ResumeAI Test Mailer" <test@ethereal.email>`,
+      to:      email,
       subject,
-      text: plainText,
-      html: htmlBody,
+      text:    plainText,
+      html:    htmlBody,
     });
 
     const previewUrl = nodemailer.getTestMessageUrl(info);
     if (previewUrl) {
       console.log("==========================================================");
-      console.log(`📨 [ETHEREAL EMAIL PREVIEW URL] Click below to view real email:`);
+      console.log("📨 [ETHEREAL EMAIL PREVIEW] Click to view the sent email:");
       console.log(`👉 ${previewUrl}`);
       console.log("==========================================================");
       return { success: true, previewUrl, devOtp: otp };
     }
-  } catch (err) {
-    console.error("⚠️ [EmailService] Ethereal test mailer error:", err.message);
+  } catch (etherealErr) {
+    console.error("⚠️  [EmailService] Ethereal fallback error:", etherealErr.message);
   }
 
+  // ── 3. Last resort — OTP is still valid; dev can use it from console ───────
+  console.warn("⚠️  [EmailService] All email transports failed. Use the console OTP above.");
   return { success: true, devOtp: otp };
 }
 

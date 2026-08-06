@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, RefreshControl } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../../styles/theme';
 import { globalStyles } from '../../styles/globalStyles';
 import { Header } from '../../components/common/Header';
@@ -40,33 +41,35 @@ export const JobSearchScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={globalStyles.container}>
-      <Header title="Job Openings 💼" subtitle="Browse and apply for active opportunities" />
+    <SafeAreaView style={globalStyles.container}>
+      <Header title="Browse Jobs 💼" subtitle="Discover and apply for active opportunities" />
       <View style={styles.filterContainer}>
         <CustomInput
-          placeholder="🔍 Search job title, company..."
+          placeholder="Search job title, company..."
           value={search}
           onChangeText={handleSearchChange}
-          style={{ flex: 1, marginBottom: 0 }}
+          icon="🔍"
+          style={{ marginBottom: theme.spacing.xs }}
         />
         <CustomInput
-          placeholder="⚡ Skill (e.g., React, Python)"
+          placeholder="Skill filter (e.g., React, Python)"
           value={skill}
           onChangeText={handleSkillChange}
-          style={{ flex: 1, marginBottom: 0, marginTop: theme.spacing.xs }}
+          icon="⚡"
+          style={{ marginBottom: 0 }}
         />
       </View>
 
       <FlatList
         data={jobs}
-        keyExtractor={(item) => item._id}
+        keyExtractor={(item) => item._id || item.id || Math.random().toString()}
         contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={() => fetchJobs(search, skill)} tintColor={theme.colors.primary} />}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={() => fetchJobs(search, skill)} tintColor={theme.colors.primaryLight} />}
         renderItem={({ item }) => (
           <JobCard
             job={item}
-            onPress={() => navigation.navigate('JobDetail', { jobId: item._id })}
-            onApply={() => navigation.navigate('ApplyJobModal', { jobId: item._id, jobTitle: item.title })}
+            onPress={() => navigation.navigate('JobDetail', { jobId: item._id || item.id })}
+            onApply={() => navigation.navigate('ApplyJobModal', { jobId: item._id || item.id, jobTitle: item.title })}
           />
         )}
         ListEmptyComponent={
@@ -78,20 +81,21 @@ export const JobSearchScreen = ({ navigation }) => {
           )
         }
       />
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   filterContainer: {
     paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    backgroundColor: theme.colors.cardBg,
+    paddingVertical: theme.spacing.md,
+    backgroundColor: theme.colors.bgSecondary,
     borderBottomWidth: 1,
-    borderBottomColor: theme.colors.cardBorder,
+    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
   },
   list: {
     padding: theme.spacing.md,
+    paddingBottom: theme.spacing.xxl,
   },
   emptyBox: {
     padding: theme.spacing.xl,
@@ -100,11 +104,12 @@ const styles = StyleSheet.create({
   emptyTitle: {
     color: theme.colors.textPrimary,
     fontSize: theme.fontSize.lg,
-    fontWeight: 'bold',
+    fontWeight: '800',
   },
   emptyDesc: {
     color: theme.colors.textMuted,
     fontSize: theme.fontSize.sm,
     marginTop: 4,
+    textAlign: 'center',
   },
 });

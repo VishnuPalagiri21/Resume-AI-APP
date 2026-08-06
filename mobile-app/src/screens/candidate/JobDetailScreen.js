@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../../styles/theme';
 import { globalStyles } from '../../styles/globalStyles';
 import { Header } from '../../components/common/Header';
@@ -27,35 +28,44 @@ export const JobDetailScreen = ({ route, navigation }) => {
 
   if (loading) {
     return (
-      <View style={[globalStyles.container, styles.centered]}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-      </View>
+      <SafeAreaView style={[globalStyles.container, styles.centered]}>
+        <ActivityIndicator size="large" color={theme.colors.primaryLight} />
+      </SafeAreaView>
     );
   }
 
   if (!job) {
     return (
-      <View style={[globalStyles.container, styles.centered]}>
+      <SafeAreaView style={[globalStyles.container, styles.centered]}>
         <Text style={{ color: theme.colors.textPrimary }}>Job posting not found.</Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={globalStyles.container}>
+    <SafeAreaView style={globalStyles.container}>
       <Header title={job.title} subtitle={job.company || job.recruiterId?.company} />
       <ScrollView contentContainerStyle={styles.scroll}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Text style={styles.backText}>← Back to Jobs</Text>
         </TouchableOpacity>
 
-        <View style={globalStyles.card}>
+        {/* Hero job card */}
+        <View style={styles.heroCard}>
           <Text style={styles.jobTitle}>{job.title}</Text>
           <Text style={styles.companyName}>🏢 {job.company || job.recruiterId?.company}</Text>
-          <Text style={styles.location}>📍 Location: {job.location || 'Remote'}</Text>
-          <Text style={styles.salary}>💰 Salary Range: {job.salaryRange || 'Competitive'}</Text>
+
+          <View style={styles.detailRow}>
+            <View style={styles.detailBadge}>
+              <Text style={styles.detailText}>📍 {job.location || 'Remote'}</Text>
+            </View>
+            <View style={[styles.detailBadge, styles.salaryBadge]}>
+              <Text style={styles.salaryText}>💰 {job.salaryRange || 'Competitive'}</Text>
+            </View>
+          </View>
+
           <Text style={styles.postedAt}>
-            📅 Posted on: {new Date(job.createdAt).toLocaleDateString()}
+            📅 Posted {new Date(job.createdAt || Date.now()).toLocaleDateString()}
           </Text>
         </View>
 
@@ -75,11 +85,11 @@ export const JobDetailScreen = ({ route, navigation }) => {
 
         <CustomButton
           title="Apply for this Position"
-          onPress={() => navigation.navigate('ApplyJobModal', { jobId: job._id, jobTitle: job.title })}
+          onPress={() => navigation.navigate('ApplyJobModal', { jobId: job._id || job.id, jobTitle: job.title })}
           style={{ marginVertical: theme.spacing.lg }}
         />
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -90,6 +100,7 @@ const styles = StyleSheet.create({
   },
   scroll: {
     padding: theme.spacing.md,
+    paddingBottom: theme.spacing.xxl,
   },
   backBtn: {
     marginBottom: theme.spacing.md,
@@ -97,54 +108,80 @@ const styles = StyleSheet.create({
   backText: {
     color: theme.colors.primaryLight,
     fontSize: theme.fontSize.sm,
-    fontWeight: '600',
+    fontWeight: '700',
+  },
+  heroCard: {
+    backgroundColor: theme.colors.cardBg,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderRadius: theme.borderRadius.xl,
+    padding: theme.spacing.lg,
+    marginBottom: theme.spacing.md,
+    ...theme.shadows.md,
   },
   jobTitle: {
-    fontSize: theme.fontSize.xxl,
-    fontWeight: 'bold',
+    fontSize: theme.fontSize.xl,
+    fontWeight: '900',
     color: theme.colors.textPrimary,
+    letterSpacing: -0.5,
   },
   companyName: {
     fontSize: theme.fontSize.md,
     color: theme.colors.primaryLight,
-    fontWeight: '600',
+    fontWeight: '700',
     marginTop: 4,
   },
-  location: {
-    fontSize: theme.fontSize.sm,
+  detailRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: theme.spacing.sm,
+  },
+  detailBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: theme.borderRadius.full,
+  },
+  detailText: {
+    fontSize: theme.fontSize.xs,
     color: theme.colors.textSecondary,
-    marginTop: 6,
-  },
-  salary: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.success,
     fontWeight: '600',
-    marginTop: 4,
+  },
+  salaryBadge: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  salaryText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.successText,
+    fontWeight: '800',
   },
   postedAt: {
     fontSize: theme.fontSize.xs,
     color: theme.colors.textMuted,
-    marginTop: 6,
+    marginTop: theme.spacing.sm,
   },
   skillsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     marginBottom: theme.spacing.md,
+    gap: 6,
   },
   skillPill: {
-    backgroundColor: 'rgba(139, 92, 246, 0.15)',
-    borderColor: theme.colors.primary,
+    backgroundColor: 'rgba(139, 92, 246, 0.12)',
+    borderColor: 'rgba(139, 92, 246, 0.3)',
     borderWidth: 1,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: theme.borderRadius.full,
-    marginRight: 8,
-    marginBottom: 8,
   },
   skillText: {
     color: theme.colors.primaryLight,
     fontSize: theme.fontSize.xs,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   descriptionText: {
     color: theme.colors.textSecondary,

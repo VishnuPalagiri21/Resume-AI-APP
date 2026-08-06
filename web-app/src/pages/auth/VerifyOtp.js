@@ -95,6 +95,7 @@ export default function VerifyOtp() {
     try {
       const res = await axios.post(`${API_BASE}/api/auth/forgot-password`, {
         email: emailParam,
+        role:  searchParams.get("role") || "user",
       });
       if (res.data.success) {
         setSuccess("New verification code sent to your email.");
@@ -132,9 +133,11 @@ export default function VerifyOtp() {
           navigate(
             `/reset-password?token=${encodeURIComponent(
               res.data.resetToken
-            )}&email=${encodeURIComponent(emailParam)}`
+            )}&email=${encodeURIComponent(emailParam)}&role=${encodeURIComponent(
+              searchParams.get("role") || "user"
+            )}`
           );
-        }, 1000);
+        }, 1200);
       }
     } catch (err) {
       setError(
@@ -276,7 +279,7 @@ export default function VerifyOtp() {
 
         <div style={{ textAlign: "center", marginTop: "8px" }}>
           <Link
-            to="/forgot-password"
+            to={`/forgot-password?role=${searchParams.get("role") || "user"}`}
             style={{
               color: "#64748b",
               fontSize: "0.82rem",

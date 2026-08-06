@@ -2,6 +2,7 @@ const express      = require("express");
 const router       = express.Router();
 const supabase     = require("../config/supabase");
 const { verifyToken } = require("../middleware/authMiddleware");
+const notificationRoutes = require("./notificationRoutes");
 
 // Guard: recruiter role only
 const isApprovedRecruiter = (req, res, next) => {
@@ -12,38 +13,103 @@ const isApprovedRecruiter = (req, res, next) => {
 
 router.use(verifyToken, isApprovedRecruiter);
 
+// Helper: Extract or initialize status history audit trail from application
+function getStatusHistory(app) {
+  if (Array.isArray(app.status_history) && app.status_history.length > 0) {
+    return app.status_history;
+  }
+  const m = app.cover_note ? app.cover_note.match(/\[STATUS_HISTORY: (.*?)\]/s) : null;
+  if (m) {
+    try {
+      return JSON.parse(m[1]);
+    } catch (e) {}
+  }
+  return [
+    {
+      status: "Applied",
+      timestamp: app.created_at || new Date().toISOString(),
+      updatedBy: "Candidate",
+    },
+  ];
+}
+
+// Helper: Append a transition to the audit trail
+function appendStatusHistory(app, newStatus, updatedBy, reason = null) {
+  const currentHistory = getStatusHistory(app);
+  const prettyMap = {
+    applied: "Applied",
+    under_review: "Under Review",
+    shortlisted: "Shortlisted",
+    selected: "Selected",
+    rejected: "Rejected",
+  };
+  const prettyStatus = prettyMap[newStatus] || newStatus;
+  currentHistory.push({
+    status: prettyStatus,
+    timestamp: new Date().toISOString(),
+    updatedBy: updatedBy || "Recruiter",
+    reason: reason || null,
+  });
+  return currentHistory;
+}
+
 /* ─────────────────────────────────────────────
    GET /api/recruiter/stats
+   Dynamic recruitment statistics matching database
 ───────────────────────────────────────────── */
 router.get("/stats", async (req, res) => {
   try {
     const { data: myJobs } = await supabase
       .from("jobs")
-      .select("id")
+      .select("id, is_active")
       .eq("recruiter_id", req.user.id);
 
     const jobIds = (myJobs || []).map(j => j.id);
-
-    // Use a placeholder that never matches if the recruiter has no jobs
     const safeIds = jobIds.length > 0 ? jobIds : ["00000000-0000-0000-0000-000000000000"];
 
-    const [{ count: totalApplications }, { count: shortlisted }] = await Promise.all([
+    const openPositions   = (myJobs || []).filter(j => j.is_active !== false).length;
+    const closedPositions = (myJobs || []).filter(j => j.is_active === false).length;
+
+    const [
+      { count: totalApplications },
+      { count: underReview },
+      { count: shortlisted },
+      { count: selected },
+      { count: rejected },
+    ] = await Promise.all([
       supabase.from("applications").select("*", { count: "exact", head: true }).in("job_id", safeIds),
+      supabase.from("applications").select("*", { count: "exact", head: true }).in("job_id", safeIds).eq("status", "under_review"),
       supabase.from("applications").select("*", { count: "exact", head: true }).in("job_id", safeIds).eq("status", "shortlisted"),
+      supabase.from("applications").select("*", { count: "exact", head: true }).in("job_id", safeIds).eq("status", "selected"),
+      supabase.from("applications").select("*", { count: "exact", head: true }).in("job_id", safeIds).eq("status", "rejected"),
     ]);
 
-    res.json({ totalJobs: myJobs.length, totalApplications, shortlisted });
+    res.json({
+      totalJobs: (myJobs || []).length,
+      totalApplications: totalApplications || 0,
+      underReview: underReview || 0,
+      shortlisted: (shortlisted || 0) + (selected || 0), // Include selected in shortlisted badge count
+      selected: selected || 0,
+      rejected: rejected || 0,
+      openPositions,
+      closedPositions,
+    });
   } catch (err) {
+    console.error("[recruiterRoutes] /stats error:", err.message);
     res.status(500).json({ message: "Failed to fetch stats" });
   }
 });
 
 /* ─────────────────────────────────────────────
-   GET /api/recruiter/shortlisted
-   Returns all shortlisted candidates across all jobs
+   GET /api/recruiter/applicants/all
+   Returns all applicants across all recruiter jobs
+   with search and filter options.
 ───────────────────────────────────────────── */
-router.get("/shortlisted", async (req, res) => {
+// Shared helper for fetching and filtering recruiter applicants
+async function getRecruiterApplicantsHandler(req, res) {
   try {
+    const { status, search, minScore, jobId } = req.query;
+
     const { data: myJobs } = await supabase
       .from("jobs")
       .select("id, title, company, location")
@@ -51,28 +117,41 @@ router.get("/shortlisted", async (req, res) => {
 
     const jobIds = (myJobs || []).map(j => j.id);
     if (jobIds.length === 0) {
-      return res.json({ total: 0, shortlisted: [] });
+      return res.json({ total: 0, applicants: [] });
     }
     const jobMap = Object.fromEntries((myJobs || []).map(j => [j.id, j]));
 
-    const { data, error } = await supabase
+    let targetIds = jobIds;
+    if (jobId && jobIds.includes(jobId)) {
+      targetIds = [jobId];
+    }
+
+    let query = supabase
       .from("applications")
       .select(`
         *,
-        resumes:resume_id (file_name, ats_score, matched_skills)
+        resumes:resume_id (file_name, ats_score, matched_skills, extracted_text)
       `)
-      .in("job_id", jobIds)
-      .eq("status", "shortlisted")
+      .in("job_id", targetIds)
       .order("updated_at", { ascending: false });
 
+    if (status && status !== "all") {
+      if (status === "shortlisted") {
+        query = query.in("status", ["shortlisted", "selected"]);
+      } else {
+        query = query.eq("status", status);
+      }
+    }
+
+    const { data, error } = await query;
     if (error) throw error;
 
-    const userIds = [...new Set(data.map(a => a.user_id).filter(Boolean))];
+    const userIds = [...new Set((data || []).map(a => a.user_id).filter(Boolean))];
     let profileMap = {};
     if (userIds.length > 0) {
       const { data: profs } = await supabase
         .from("profiles")
-        .select("id, full_name, phone")
+        .select("id, full_name, phone, skills, experience_years")
         .in("id", userIds);
 
       const { data: authData } = await supabase.auth.admin.listUsers({ perPage: 1000 });
@@ -83,35 +162,82 @@ router.get("/shortlisted", async (req, res) => {
           fullName: p.full_name,
           email:    emailMap[p.id] || "",
           phone:    p.phone || "",
+          skills:   p.skills || [],
+          experienceYears: p.experience_years || "",
         };
       });
     }
 
-    const shortlisted = data.map(a => {
+    let applicants = (data || []).map(a => {
       const m = a.cover_note ? a.cover_note.match(/\[REJECTION REASON: (.*?)\]/s) : null;
+      const history = getStatusHistory(a);
+      const userObj = profileMap[a.user_id] || { fullName: "Applicant", email: "", phone: "", skills: [] };
+
       return {
         _id:       a.id,
         atsScore:  a.ats_score,
         status:    a.status,
+        statusHistory: history,
         rejectionReason: m ? m[1] : null,
         coverNote: a.cover_note,
         createdAt: a.created_at,
         updatedAt: a.updated_at || a.created_at,
         job:       jobMap[a.job_id] || null,
-        userId:    profileMap[a.user_id] || null,
+        userId:    userObj,
         resumeId:  a.resumes ? {
           fileName:      a.resumes.file_name,
           atsScore:      a.resumes.ats_score,
           matchedSkills: a.resumes.matched_skills,
+          extractedText: a.resumes.extracted_text || "",
         } : null,
       };
     });
 
-    res.json({ total: shortlisted.length, shortlisted });
+    // In-memory filter for minimum ATS score
+    if (minScore) {
+      const minNum = Number(minScore);
+      if (!isNaN(minNum)) {
+        applicants = applicants.filter(a => (a.atsScore || 0) >= minNum);
+      }
+    }
+
+    // Advanced search across candidate name, email, phone, job title, skills, resume keywords
+    if (search) {
+      const q = search.toLowerCase();
+      applicants = applicants.filter(a => {
+        const nameMatch  = (a.userId?.fullName || "").toLowerCase().includes(q);
+        const emailMatch = (a.userId?.email || "").toLowerCase().includes(q);
+        const phoneMatch = (a.userId?.phone || "").toLowerCase().includes(q);
+        const jobMatch   = (a.job?.title || "").toLowerCase().includes(q);
+        const skillMatch = Array.isArray(a.userId?.skills) && a.userId.skills.some(s => s.toLowerCase().includes(q));
+        const resSkillMatch = Array.isArray(a.resumeId?.matchedSkills) && a.resumeId.matchedSkills.some(s => s.toLowerCase().includes(q));
+        const resTextMatch  = (a.resumeId?.extractedText || "").toLowerCase().includes(q);
+        return nameMatch || emailMatch || phoneMatch || jobMatch || skillMatch || resSkillMatch || resTextMatch;
+      });
+    }
+
+    return res.json({ total: applicants.length, applicants });
   } catch (err) {
-    console.error("[recruiterRoutes] /shortlisted error:", err.message);
-    res.status(500).json({ message: "Failed to fetch shortlisted candidates" });
+    console.error("[recruiterRoutes] /applicants error:", err.message);
+    return res.status(500).json({ message: "Failed to fetch applicants" });
   }
+}
+
+router.get("/applicants/all", getRecruiterApplicantsHandler);
+
+router.get("/shortlisted", (req, res) => {
+  req.query.status = "shortlisted";
+  return getRecruiterApplicantsHandler(req, res);
+});
+
+router.get("/selected", (req, res) => {
+  req.query.status = "selected";
+  return getRecruiterApplicantsHandler(req, res);
+});
+
+router.get("/rejected", (req, res) => {
+  req.query.status = "rejected";
+  return getRecruiterApplicantsHandler(req, res);
 });
 
 /* ─────────────────────────────────────────────
@@ -154,7 +280,6 @@ router.post("/jobs", async (req, res) => {
     if (!title || !description)
       return res.status(400).json({ message: "title and description are required" });
 
-    // Fetch company from profile
     const { data: profile } = await supabase
       .from("profiles").select("company").eq("id", req.user.id).single();
 
@@ -253,136 +378,128 @@ router.delete("/jobs/:id", async (req, res) => {
 
 /* ─────────────────────────────────────────────
    GET /api/recruiter/jobs/:id/applicants
-   Returns applicants sorted by ATS score desc.
 ───────────────────────────────────────────── */
-router.get("/jobs/:id/applicants", async (req, res) => {
-  try {
-    // Verify this job belongs to the recruiter
-    const { data: job } = await supabase
-      .from("jobs").select("id")
-      .eq("id", req.params.id)
-      .eq("recruiter_id", req.user.id)
-      .maybeSingle();
-
-    if (!job) return res.status(404).json({ message: "Job not found" });
-
-    const { data, error } = await supabase
-      .from("applications")
-      .select(`
-        *,
-        resumes:resume_id (file_name, ats_score, matched_skills)
-      `)
-      .eq("job_id", req.params.id)
-      .order("ats_score", { ascending: false });
-
-    if (error) throw error;
-
-    // Fetch user profiles & emails separately to avoid PGRST200 schema error
-    const userIds = [...new Set(data.map(a => a.user_id).filter(Boolean))];
-    let profileMap = {};
-    if (userIds.length > 0) {
-      const { data: profs } = await supabase
-        .from("profiles")
-        .select("id, full_name, phone")
-        .in("id", userIds);
-
-      const { data: authData } = await supabase.auth.admin.listUsers({ perPage: 1000 });
-      const emailMap = Object.fromEntries((authData?.users || []).map(u => [u.id, u.email]));
-
-      (profs || []).forEach(p => {
-        profileMap[p.id] = {
-          fullName: p.full_name,
-          email:    emailMap[p.id] || "",
-          phone:    p.phone || "",
-        };
-      });
-    }
-
-    const applicants = data.map(a => {
-      const m = a.cover_note ? a.cover_note.match(/\[REJECTION REASON: (.*?)\]/s) : null;
-      return {
-        _id:       a.id,
-        atsScore:  a.ats_score,
-        status:    a.status,
-        rejectionReason: m ? m[1] : null,
-        coverNote: a.cover_note,
-        createdAt: a.created_at,
-        userId:    profileMap[a.user_id] || null,
-        resumeId:  a.resumes ? {
-          fileName:      a.resumes.file_name,
-          atsScore:      a.resumes.ats_score,
-          matchedSkills: a.resumes.matched_skills,
-        } : null,
-      };
-    });
-
-    res.json({ total: applicants.length, applicants });
-  } catch (err) {
-    console.error("[recruiterRoutes] /jobs/:id/applicants error:", err.message);
-    res.status(500).json({ message: "Failed to fetch applicants" });
-  }
+router.get("/jobs/:id/applicants", (req, res) => {
+  req.query.jobId = req.params.id;
+  return getRecruiterApplicantsHandler(req, res);
 });
 
 /* ─────────────────────────────────────────────
    PUT /api/recruiter/applicants/:id/status
-   Update application status.
+   Enterprise Status Workflow with Audit Trail
+   & Automated Candidate Notifications
 ───────────────────────────────────────────── */
 router.put("/applicants/:id/status", async (req, res) => {
   try {
     const { status, rejectionReason } = req.body;
-    if (!["applied", "shortlisted", "selected", "rejected"].includes(status))
-      return res.status(400).json({ message: "Invalid status" });
+    const allowed = ["applied", "under_review", "shortlisted", "selected", "rejected"];
+    if (!allowed.includes(status)) {
+      return res.status(400).json({ message: `Invalid status. Must be one of: ${allowed.join(", ")}` });
+    }
 
-    // ── Ownership check ────────────────────────────────────────────────────
+    // Ownership check
     const { data: ownership } = await supabase
       .from("applications")
-      .select("id, jobs!inner(recruiter_id)")
+      .select("id, user_id, status, cover_note, status_history, created_at, jobs!inner(title, company, recruiter_id)")
       .eq("id", req.params.id)
       .eq("jobs.recruiter_id", req.user.id)
       .maybeSingle();
 
-    if (!ownership)
+    if (!ownership) {
       return res.status(403).json({ message: "Access denied: application not found or not yours" });
-    // ──────────────────────────────────────────────────────────────────────
+    }
 
-    const { data: existingApp } = await supabase
-      .from("applications")
-      .select("cover_note")
-      .eq("id", req.params.id)
+    const { data: recruiterProfile } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", req.user.id)
       .maybeSingle();
+    const updaterName = recruiterProfile?.full_name || "Recruiter";
 
-    let newCoverNote = existingApp?.cover_note || "";
-    newCoverNote = newCoverNote.replace(/\n\n\[REJECTION REASON: .*?\]/s, "");
+    // ── Build Updated Audit Trail ──
+    const newHistory = appendStatusHistory(ownership, status, updaterName, rejectionReason);
+
+    // ── Update Cover Note Metadata with JSON History & Rejection Reason ──
+    let newCoverNote = ownership.cover_note || "";
+    newCoverNote = newCoverNote
+      .replace(/\n\n\[STATUS_HISTORY: .*?\]/s, "")
+      .replace(/\n\n\[REJECTION REASON: .*?\]/s, "");
+
     if (status === "rejected" && rejectionReason) {
       newCoverNote += `\n\n[REJECTION REASON: ${rejectionReason}]`;
     }
+    newCoverNote += `\n\n[STATUS_HISTORY: ${JSON.stringify(newHistory)}]`;
 
+    // ── Update Database (trying status_history column if present) ──
+    const updatePayload = {
+      status,
+      cover_note: newCoverNote,
+      updated_at: new Date().toISOString(),
+    };
+
+    // Try setting status_history JSONB column
     const { data, error } = await supabase
       .from("applications")
-      .update({ status, cover_note: newCoverNote, updated_at: new Date().toISOString() })
+      .update({ ...updatePayload, status_history: newHistory })
       .eq("id", req.params.id)
       .select("*")
-      .single();
+      .maybeSingle();
 
-    if (error || !data) return res.status(404).json({ message: "Application not found" });
+    let savedApp = data;
+    if (error && (error.code === "42703" || error.code === "PGRST204")) {
+      // Column status_history doesn't exist yet, update without it
+      const { data: fallbackData, error: fallbackErr } = await supabase
+        .from("applications")
+        .update(updatePayload)
+        .eq("id", req.params.id)
+        .select("*")
+        .single();
+      if (fallbackErr) throw fallbackErr;
+      savedApp = fallbackData;
+    } else if (error) {
+      throw error;
+    }
 
-    // Fetch applicant profile & email separately
+    // ── AUTOMATED CANDIDATE NOTIFICATION ──
+    const jobTitle = ownership.jobs?.title || "your job application";
+    const companyName = ownership.jobs?.company || "the company";
+    let notifTitle = "Application Status Updated";
+    let notifMsg = `Your application for ${jobTitle} at ${companyName} has been updated to ${status}.`;
+
+    if (status === "under_review") {
+      notifTitle = "Application Under Review 🔎";
+      notifMsg = `Your application for ${jobTitle} at ${companyName} has moved to Under Review.`;
+    } else if (status === "shortlisted") {
+      notifTitle = "You have been Shortlisted! ⭐";
+      notifMsg = `Congratulations! You have been shortlisted for ${jobTitle} at ${companyName}.`;
+    } else if (status === "selected") {
+      notifTitle = "You have been Selected! 🎉";
+      notifMsg = `Congratulations! You have been selected for ${jobTitle} at ${companyName}. The hiring team will contact you soon.`;
+    } else if (status === "rejected") {
+      notifTitle = "Application Status Update";
+      notifMsg = `Unfortunately your application for ${jobTitle} at ${companyName} was not selected.${rejectionReason ? ` Note: ${rejectionReason}` : ""}`;
+    }
+
+    await notificationRoutes.addStatusNotification(ownership.user_id, notifTitle, notifMsg, `/dashboard/user`);
+
+    // Fetch applicant info
     const { data: applicantProfile } = await supabase
       .from("profiles")
       .select("full_name")
-      .eq("id", data.user_id)
+      .eq("id", ownership.user_id)
       .maybeSingle();
 
-    const { data: authUserData } = await supabase.auth.admin.getUserById(data.user_id);
+    const { data: authUserData } = await supabase.auth.admin.getUserById(ownership.user_id);
 
     const m = newCoverNote.match(/\[REJECTION REASON: (.*?)\]/s);
     const parsedReason = m ? m[1] : null;
 
     res.json({
-      message: `Candidate ${status}`,
+      message: `Candidate status updated to ${status}`,
       application: {
-        _id:    data.id,
-        status: data.status,
+        _id:    savedApp.id,
+        status: savedApp.status,
+        statusHistory: newHistory,
         rejectionReason: parsedReason,
         userId: {
           fullName: applicantProfile?.full_name || "",

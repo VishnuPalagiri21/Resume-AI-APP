@@ -7,6 +7,33 @@ const cookieParser   = require("cookie-parser");
 const sanitizeInputs = require("./middleware/sanitizeMiddleware");
 require("dotenv").config();
 
+/* ── REDIS RATE-LIMIT STORE (production scaling) ───
+   When REDIS_URL is set, rate-limit counters are shared
+   across all backend instances via Redis, preventing
+   bypass in load-balanced / multi-node deployments.
+   Falls back to default in-memory store for local dev.
+─────────────────────────────────────────────────── */
+let rateLimitStore;
+if (process.env.REDIS_URL) {
+  try {
+    const { RedisStore } = require("rate-limit-redis");
+    const Redis = require("ioredis");
+    const redisClient = new Redis(process.env.REDIS_URL, {
+      maxRetriesPerRequest: 3,
+      enableOfflineQueue: false,
+      lazyConnect: true,
+    });
+    redisClient.connect().catch((err) => {
+      console.warn("⚠️  Redis connection failed, falling back to in-memory rate limiter:", err.message);
+    });
+    rateLimitStore = new RedisStore({ sendCommand: (...args) => redisClient.call(...args) });
+    console.log("✅ Rate limiter: Redis-backed store configured for production scaling");
+  } catch (err) {
+    console.warn("⚠️  rate-limit-redis/ioredis not installed. Using in-memory store. Install with: npm i rate-limit-redis ioredis");
+    rateLimitStore = undefined;
+  }
+}
+
 const app = express();
 
 /* ── SECURITY HEADERS (Helmet) ──────────────────
@@ -63,6 +90,7 @@ const authLimiter = rateLimit({
   skip: () => process.env.NODE_ENV !== "production", // Disabled during local development
   standardHeaders: true,
   legacyHeaders: false,
+  ...(rateLimitStore ? { store: rateLimitStore } : {}), // Redis store in production, memory in dev
   message: {
     message: "Too many failed attempts from this IP. Please try again after 15 minutes.",
   },
@@ -106,7 +134,8 @@ app.use("/api/resumes",     require("./routes/resumeRoutes"));
 app.use("/api/ats",         require("./routes/atsRoutes"));
 app.use("/api/suggestions", require("./routes/suggestionRoutes"));
 app.use("/api/dashboard",   require("./routes/dashboardRoutes"));
-app.use("/api/editor",      require("./routes/editorRoutes"));
+app.use("/api/editor",        require("./routes/editorRoutes"));
+app.use("/api/notifications", require("./routes/notificationRoutes"));
 
 // Health check
 app.get("/", (req, res) =>
@@ -159,3 +188,4 @@ if (process.env.NODE_ENV !== "test") {
 }
 
 module.exports = { app };
+// Backend Server Ready

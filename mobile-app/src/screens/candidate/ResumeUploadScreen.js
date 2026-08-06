@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import { theme } from '../../styles/theme';
 import { globalStyles } from '../../styles/globalStyles';
@@ -60,8 +61,8 @@ export const ResumeUploadScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={globalStyles.container}>
-      <Header title="AI ATS Analyzer 🤖" subtitle="Scan PDF resume for match score & suggestions" />
+    <SafeAreaView style={globalStyles.container}>
+      <Header title="AI ATS Analyzer 🎯" subtitle="Scan PDF resume for match score & suggestions" />
       <ScrollView contentContainerStyle={styles.scroll}>
         <Text style={styles.sectionTitle}>1. Select PDF Resume</Text>
 
@@ -70,12 +71,14 @@ export const ResumeUploadScreen = ({ navigation }) => {
           onPress={handlePickDocument}
           activeOpacity={0.8}
         >
-          <Text style={{ fontSize: 40 }}>📄</Text>
+          <View style={styles.iconCircle}>
+            <Text style={{ fontSize: 32 }}>📄</Text>
+          </View>
           <Text style={styles.uploadTitle}>
-            {file ? file.name : 'Tap to Choose PDF Resume'}
+            {file ? file.name : 'Tap to Select PDF Resume'}
           </Text>
           <Text style={styles.uploadSub}>
-            {file ? `${(file.size / 1024).toFixed(1)} KB` : 'PDF format up to 5MB'}
+            {file ? `${(file.size / 1024).toFixed(1)} KB • Tap to change` : 'PDF format up to 5MB'}
           </Text>
         </TouchableOpacity>
 
@@ -83,7 +86,7 @@ export const ResumeUploadScreen = ({ navigation }) => {
           2. Target Job Description (Optional)
         </Text>
         <Text style={styles.helperText}>
-          Paste the job requirements to perform instant keyword matching & missing skill analysis.
+          Paste job requirements to perform instant keyword matching & missing skill analysis.
         </Text>
 
         <CustomInput
@@ -101,7 +104,7 @@ export const ResumeUploadScreen = ({ navigation }) => {
         ) : null}
 
         <CustomButton
-          title="Run AI ATS Analysis"
+          title={loading ? 'Running AI ATS Scan…' : 'Run AI ATS Analysis'}
           onPress={handleUploadAndAnalyze}
           loading={loading}
           style={{ marginTop: theme.spacing.lg }}
@@ -110,23 +113,26 @@ export const ResumeUploadScreen = ({ navigation }) => {
         <TouchableOpacity
           style={styles.historyBtn}
           onPress={() => navigation.navigate('ResumeHistory')}
+          activeOpacity={0.8}
         >
           <Text style={styles.historyText}>📋 View Previously Analyzed Resumes</Text>
         </TouchableOpacity>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   scroll: {
     padding: theme.spacing.md,
+    paddingBottom: theme.spacing.xxl,
   },
   sectionTitle: {
-    fontSize: theme.fontSize.lg,
-    fontWeight: 'bold',
+    fontSize: theme.fontSize.md,
+    fontWeight: '800',
     color: theme.colors.textPrimary,
     marginBottom: theme.spacing.xs,
+    letterSpacing: -0.3,
   },
   helperText: {
     fontSize: theme.fontSize.xs,
@@ -135,49 +141,62 @@ const styles = StyleSheet.create({
   },
   uploadBox: {
     backgroundColor: theme.colors.cardBg,
-    borderColor: theme.colors.cardBorder,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     borderWidth: 2,
     borderStyle: 'dashed',
-    borderRadius: theme.borderRadius.lg,
+    borderRadius: theme.borderRadius.xl,
     padding: theme.spacing.xl,
     alignItems: 'center',
     justifyContent: 'center',
+    ...theme.shadows.sm,
   },
   uploadBoxActive: {
-    borderColor: theme.colors.primary,
+    borderColor: 'rgba(139, 92, 246, 0.5)',
     backgroundColor: 'rgba(139, 92, 246, 0.12)',
+    ...theme.shadows.glow,
+  },
+  iconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: 'rgba(139, 92, 246, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   uploadTitle: {
     color: theme.colors.textPrimary,
     fontSize: theme.fontSize.md,
-    fontWeight: 'bold',
-    marginTop: 8,
+    fontWeight: '800',
+    marginTop: 4,
+    textAlign: 'center',
   },
   uploadSub: {
     color: theme.colors.textMuted,
     fontSize: theme.fontSize.xs,
-    marginTop: 2,
+    marginTop: 4,
   },
   errorBox: {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-    borderColor: theme.colors.danger,
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    borderColor: 'rgba(239, 68, 68, 0.3)',
     borderWidth: 1,
     padding: theme.spacing.md,
-    borderRadius: theme.borderRadius.md,
+    borderRadius: theme.borderRadius.lg,
     marginTop: theme.spacing.md,
   },
   errorText: {
-    color: theme.colors.danger,
+    color: theme.colors.dangerText,
     fontSize: theme.fontSize.sm,
+    fontWeight: '600',
   },
   historyBtn: {
-    marginTop: theme.spacing.xl,
+    marginTop: theme.spacing.lg,
     alignItems: 'center',
     padding: theme.spacing.md,
   },
   historyText: {
     color: theme.colors.primaryLight,
     fontSize: theme.fontSize.sm,
-    fontWeight: '600',
+    fontWeight: '700',
   },
 });

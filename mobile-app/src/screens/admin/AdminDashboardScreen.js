@@ -1,11 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  RefreshControl,
+  TouchableOpacity,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../../styles/theme';
-import { globalStyles } from '../../styles/globalStyles';
 import { Header } from '../../components/common/Header';
-import { StatCard } from '../../components/common/StatCard';
+import { KPICard } from '../../components/common/KPICard';
 import { adminApi } from '../../api/adminApi';
 
+/**
+ * Fintech-Style Light Admin Dashboard (Image 1 Design System)
+ * #F5F6FA background, pure white (#FFFFFF) cards, soft shadows, dark navy typography,
+ * and reusable <KPICard /> components with native SVG sparklines.
+ */
 export const AdminDashboardScreen = ({ navigation }) => {
   const [stats, setStats] = useState({
     totalUsers: 0,
@@ -39,115 +51,262 @@ export const AdminDashboardScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={globalStyles.container}>
-      <Header title="Admin Overview 🛡️" subtitle="Platform analytics & management console" />
+    <SafeAreaView style={styles.pageContainer}>
+      <Header
+        title="Admin Overview 🛡️"
+        subtitle="Platform governance & management console"
+        showMenu={true}
+        lightTheme={true}
+      />
       <ScrollView
         contentContainerStyle={styles.scroll}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.danger} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#3B82F6"
+          />
+        }
+        showsVerticalScrollIndicator={false}
       >
+        {/* ── Pending Alert (Only shown if pendingRecruiters > 0) ── */}
         {stats.pendingRecruiters > 0 ? (
           <TouchableOpacity
             style={styles.pendingAlert}
             onPress={() => navigation.navigate('AdminRecruitersTab')}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Review Pending Recruiter Registrations"
           >
-            <Text style={styles.alertText}>
-              ⚠️ {stats.pendingRecruiters} Pending Recruiter Registration(s) Require Approval →
-            </Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.alertTitle}>⚠️ Action Required</Text>
+              <Text style={styles.alertText}>
+                {stats.pendingRecruiters} Pending Recruiter Registration(s)
+                Require Approval
+              </Text>
+            </View>
+            <Text style={styles.alertArrow}>Review →</Text>
           </TouchableOpacity>
         ) : null}
 
-        <Text style={globalStyles.sectionHeading}>Platform Metrics</Text>
+        {/* ── Platform Analytics (<KPICard /> Grid) ── */}
+        <Text style={styles.sectionTitle}>Platform Analytics</Text>
         <View style={styles.statsGrid}>
-          <StatCard title="Candidate Users" value={stats.totalUsers} icon="👥" accentColor={theme.colors.primaryLight} />
-          <StatCard title="Approved Recruiters" value={stats.totalRecruiters} icon="🏢" accentColor={theme.colors.accent} />
-          <StatCard title="Pending Approvals" value={stats.pendingRecruiters} icon="⏳" accentColor={theme.colors.warning} />
-          <StatCard title="Total Platform Jobs" value={stats.totalJobs} icon="💼" accentColor={theme.colors.success} />
-          <StatCard title="Job Applications" value={stats.totalApplications} icon="📩" accentColor={theme.colors.accentCyan} />
+          <KPICard
+            title="Candidate Users"
+            value={stats.totalUsers}
+            icon="👥"
+            delta="+12% mo"
+            isPositive={true}
+            accentColor="#3B82F6"
+            sparklineData={[100, 105, 112, 120, 130, 140, 150]}
+            onPress={() => navigation.navigate('AdminUsersTab')}
+          />
+          <KPICard
+            title="Approved Recruiters"
+            value={stats.totalRecruiters}
+            icon="🏢"
+            delta="+5 this mo"
+            isPositive={true}
+            accentColor="#7C3AED"
+            sparklineData={[10, 11, 12, 14, 15, 16, 18]}
+            onPress={() => navigation.navigate('AdminRecruitersTab')}
+          />
+          <KPICard
+            title="Pending Approvals"
+            value={stats.pendingRecruiters}
+            icon="⏳"
+            delta="urgent"
+            isPositive={stats.pendingRecruiters === 0}
+            accentColor="#F59E0B"
+            sparklineData={[0, 1, 1, 2, 3, 2, stats.pendingRecruiters || 0]}
+            onPress={() => navigation.navigate('AdminRecruitersTab')}
+          />
+          <KPICard
+            title="Total Platform Jobs"
+            value={stats.totalJobs}
+            icon="💼"
+            delta="+8% mo"
+            isPositive={true}
+            accentColor="#10B981"
+            sparklineData={[20, 22, 25, 28, 30, 32, 35]}
+            onPress={() => navigation.navigate('AdminJobsTab')}
+          />
+          <KPICard
+            title="Job Applications"
+            value={stats.totalApplications}
+            icon="📩"
+            delta="+24% mo"
+            isPositive={true}
+            accentColor="#0284C7"
+            sparklineData={[50, 60, 75, 85, 95, 110, 130]}
+          />
         </View>
 
-        <Text style={globalStyles.sectionHeading}>Administrative Actions</Text>
+        {/* ── Administrative Console Shortcuts ── */}
+        <Text style={styles.sectionTitle}>Administrative Shortcuts</Text>
 
         <TouchableOpacity
-          style={styles.menuCard}
+          style={styles.actionCard}
           onPress={() => navigation.navigate('AdminRecruitersTab')}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Recruiter Approval Portal"
         >
-          <Text style={{ fontSize: 24, marginRight: 12 }}>🏢</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.menuTitle}>Recruiter Approval Portal</Text>
-            <Text style={styles.menuDesc}>Approve or revoke company recruiter registrations</Text>
+          <View style={[styles.actionIconBox, { backgroundColor: '#FEF3C7' }]}>
+            <Text style={{ fontSize: 18 }}>🏢</Text>
           </View>
-          <Text style={{ color: theme.colors.warning, fontWeight: 'bold' }}>Review →</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.actionTitle}>Recruiter Approval Portal</Text>
+            <Text style={styles.actionDesc}>
+              Approve or revoke company recruiter registrations
+            </Text>
+          </View>
+          <View style={[styles.pillBtn, { backgroundColor: '#FEF3C7' }]}>
+            <Text style={{ color: '#D97706', fontSize: 12, fontWeight: '700' }}>
+              Review →
+            </Text>
+          </View>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.menuCard}
+          style={styles.actionCard}
           onPress={() => navigation.navigate('AdminUsersTab')}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Candidate User Directory"
         >
-          <Text style={{ fontSize: 24, marginRight: 12 }}>👤</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.menuTitle}>Candidate User Directory</Text>
-            <Text style={styles.menuDesc}>View registered candidates and manage accounts</Text>
+          <View style={[styles.actionIconBox, { backgroundColor: '#EEF2FF' }]}>
+            <Text style={{ fontSize: 18 }}>👤</Text>
           </View>
-          <Text style={{ color: theme.colors.primaryLight, fontWeight: 'bold' }}>View →</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.actionTitle}>Candidate User Directory</Text>
+            <Text style={styles.actionDesc}>
+              View registered candidates and manage accounts
+            </Text>
+          </View>
+          <View style={[styles.pillBtn, { backgroundColor: '#EEF2FF' }]}>
+            <Text style={{ color: '#4F46E5', fontSize: 12, fontWeight: '700' }}>
+              View →
+            </Text>
+          </View>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.menuCard}
+          style={styles.actionCard}
           onPress={() => navigation.navigate('AdminJobsTab')}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="All Platform Jobs"
         >
-          <Text style={{ fontSize: 24, marginRight: 12 }}>📋</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.menuTitle}>All Platform Jobs</Text>
-            <Text style={styles.menuDesc}>Monitor active job postings across recruiters</Text>
+          <View style={[styles.actionIconBox, { backgroundColor: '#ECFDF5' }]}>
+            <Text style={{ fontSize: 18 }}>📋</Text>
           </View>
-          <Text style={{ color: theme.colors.success, fontWeight: 'bold' }}>View →</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.actionTitle}>All Platform Jobs</Text>
+            <Text style={styles.actionDesc}>
+              Monitor active job postings across recruiters
+            </Text>
+          </View>
+          <View style={[styles.pillBtn, { backgroundColor: '#ECFDF5' }]}>
+            <Text style={{ color: '#059669', fontSize: 12, fontWeight: '700' }}>
+              Monitor →
+            </Text>
+          </View>
         </TouchableOpacity>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  pageContainer: {
+    flex: 1,
+    backgroundColor: '#F5F6FA', // Light Fintech Gray Background
+  },
   scroll: {
-    padding: theme.spacing.md,
+    padding: 16,
+    paddingBottom: 40,
   },
   pendingAlert: {
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-    borderColor: theme.colors.warning,
-    borderWidth: 1,
-    padding: theme.spacing.md,
-    borderRadius: theme.borderRadius.md,
-    marginBottom: theme.spacing.md,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  alertTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#B45309',
+    marginBottom: 2,
   },
   alertText: {
-    color: theme.colors.warning,
-    fontSize: theme.fontSize.sm,
-    fontWeight: 'bold',
+    fontSize: 13,
+    color: '#92400E',
+    fontWeight: '500',
+  },
+  alertArrow: {
+    color: '#B45309',
+    fontSize: 13,
+    fontWeight: '700',
+    marginLeft: 12,
+  },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 12,
   },
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginHorizontal: -theme.spacing.xs,
-    marginBottom: theme.spacing.md,
+    marginHorizontal: -4,
+    marginBottom: 16,
   },
-  menuCard: {
-    backgroundColor: theme.colors.cardBg,
-    borderColor: theme.colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: theme.borderRadius.md,
-    padding: theme.spacing.md,
+  actionCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: theme.spacing.md,
+    marginBottom: 12,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  menuTitle: {
-    fontSize: theme.fontSize.md,
-    fontWeight: 'bold',
-    color: theme.colors.textPrimary,
+  actionIconBox: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
   },
-  menuDesc: {
-    fontSize: theme.fontSize.xs,
-    color: theme.colors.textSecondary,
+  actionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F1A3C',
+  },
+  actionDesc: {
+    fontSize: 13,
+    color: '#64748B',
     marginTop: 2,
+    lineHeight: 18,
+  },
+  pillBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
   },
 });

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../../styles/theme';
 import { globalStyles } from '../../styles/globalStyles';
 import { Header } from '../../components/common/Header';
@@ -7,7 +8,7 @@ import { CustomButton } from '../../components/common/CustomButton';
 import { editorApi } from '../../api/editorApi';
 
 export const LatexEditorScreen = ({ route, navigation }) => {
-  const { docId } = route.params;
+  const docId = route?.params?.docId;
 
   const [document, setDocument] = useState(null);
   const [title, setTitle] = useState('');
@@ -22,17 +23,46 @@ export const LatexEditorScreen = ({ route, navigation }) => {
 
   useEffect(() => {
     const fetchDoc = async () => {
+      setLoading(true);
       try {
-        const data = await editorApi.getDocumentById(docId);
-        if (data.document) {
-          setDocument(data.document);
-          setTitle(data.document.title || '');
-          setLatexSource(data.document.latexSource || '');
-          setIsPublic(!!data.document.isPublic);
-          setCompiledPdfUrl(data.document.compiledPdfUrl || '');
+        let activeDocId = docId;
+        if (!activeDocId) {
+          const docsRes = await editorApi.getDocuments();
+          if (docsRes.documents && docsRes.documents.length > 0) {
+            const first = docsRes.documents[0];
+            setDocument(first);
+            setTitle(first.title || 'My Resume');
+            setLatexSource(first.latexSource || '');
+            setIsPublic(!!first.isPublic);
+            setCompiledPdfUrl(first.compiledPdfUrl || '');
+            setLoading(false);
+            return;
+          } else {
+            const createdRes = await editorApi.createDocument('My Resume', 'modern');
+            if (createdRes.document) {
+              setDocument(createdRes.document);
+              setTitle(createdRes.document.title || 'My Resume');
+              setLatexSource(createdRes.document.latexSource || '');
+              setIsPublic(!!createdRes.document.isPublic);
+              setCompiledPdfUrl(createdRes.document.compiledPdfUrl || '');
+              setLoading(false);
+              return;
+            }
+          }
+        }
+
+        if (activeDocId) {
+          const data = await editorApi.getDocumentById(activeDocId);
+          if (data.document) {
+            setDocument(data.document);
+            setTitle(data.document.title || '');
+            setLatexSource(data.document.latexSource || '');
+            setIsPublic(!!data.document.isPublic);
+            setCompiledPdfUrl(data.document.compiledPdfUrl || '');
+          }
         }
       } catch (err) {
-        Alert.alert('Error', err.message || 'Failed to load document');
+        Alert.alert('Notice', err.message || 'Failed to load document');
       } finally {
         setLoading(false);
       }
@@ -59,7 +89,6 @@ export const LatexEditorScreen = ({ route, navigation }) => {
     setCompilationError('');
     setCompiling(true);
     try {
-      // First auto-save current LaTeX source
       await editorApi.updateDocument(docId, { title, latexSource });
       const res = await editorApi.compileDocument(docId, latexSource);
 
@@ -107,23 +136,54 @@ export const LatexEditorScreen = ({ route, navigation }) => {
     }
   };
 
+  const confirmDelete = async () => {
+    const targetId = docId || document?._id || document?.id;
+    if (!targetId) return;
+    try {
+      await editorApi.deleteDocument(targetId);
+      Alert.alert('Deleted', 'Document deleted.');
+      navigation.goBack();
+    } catch (err) {
+      Alert.alert('Error', err.message || 'Failed to delete document');
+    }
+  };
+
+  const handleDelete = () => {
+    const targetId = docId || document?._id || document?.id;
+    if (!targetId) return;
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.confirm(`Are you sure you want to delete "${title}"?`)) {
+        confirmDelete();
+      }
+    } else {
+      Alert.alert(
+        'Delete Resume',
+        `Are you sure you want to delete "${title}"?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Delete', style: 'destructive', onPress: confirmDelete },
+        ]
+      );
+    }
+  };
+
   if (loading) {
     return (
-      <View style={[globalStyles.container, styles.centered]}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-      </View>
+      <SafeAreaView style={[globalStyles.container, styles.centered]}>
+        <ActivityIndicator size="large" color={theme.colors.primaryLight} />
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={globalStyles.container}>
+    <SafeAreaView style={globalStyles.container}>
       <Header title={title || 'LaTeX Editor'} subtitle="Edit source & compile to PDF" />
       <ScrollView contentContainerStyle={styles.scroll}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Text style={styles.backText}>← Back to Document List</Text>
         </TouchableOpacity>
 
-        {/* Action Toolbar */}
+        {/* Action Toolbar — matches web editor-toolbar */}
         <View style={styles.toolbar}>
           <CustomButton
             title="💾 Save"
@@ -140,7 +200,7 @@ export const LatexEditorScreen = ({ route, navigation }) => {
           />
           {compiledPdfUrl ? (
             <CustomButton
-              title="👁️ View PDF"
+              title="📥 Download PDF"
               variant="outline"
               onPress={() => navigation.navigate('PdfPreview', { pdfUrl: compiledPdfUrl, title })}
               style={{ flex: 1, marginLeft: 4 }}
@@ -150,12 +210,18 @@ export const LatexEditorScreen = ({ route, navigation }) => {
 
         <View style={styles.secondaryToolbar}>
           <TouchableOpacity style={styles.toolBtn} onPress={handleSaveSnapshot}>
-            <Text style={styles.toolBtnText}>📸 Save Snapshot</Text>
+            <Text style={styles.toolBtnText}>📸 Snapshot</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.toolBtn} onPress={handleToggleShare}>
             <Text style={styles.toolBtnText}>
-              {isPublic ? '🌐 Public (Tap to make Private)' : '🔒 Private (Tap to Share)'}
+              {isPublic ? '🌐 Public' : '🔒 Private'}
             </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.toolBtn, { borderColor: 'rgba(239, 68, 68, 0.35)', backgroundColor: 'rgba(239, 68, 68, 0.12)' }]}
+            onPress={handleDelete}
+          >
+            <Text style={[styles.toolBtnText, { color: '#F87171' }]}>🗑️ Delete</Text>
           </TouchableOpacity>
         </View>
 
@@ -178,7 +244,7 @@ export const LatexEditorScreen = ({ route, navigation }) => {
           fontFamily={Platform.OS === 'ios' ? 'Courier' : 'monospace'}
         />
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -189,6 +255,7 @@ const styles = StyleSheet.create({
   },
   scroll: {
     padding: theme.spacing.md,
+    paddingBottom: theme.spacing.xxl,
   },
   backBtn: {
     marginBottom: theme.spacing.sm,
@@ -196,7 +263,7 @@ const styles = StyleSheet.create({
   backText: {
     color: theme.colors.primaryLight,
     fontSize: theme.fontSize.sm,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   toolbar: {
     flexDirection: 'row',
@@ -211,44 +278,45 @@ const styles = StyleSheet.create({
   toolBtn: {
     flex: 1,
     backgroundColor: theme.colors.cardBg,
-    borderColor: theme.colors.cardBorder,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
     borderWidth: 1,
-    borderRadius: theme.borderRadius.sm,
-    paddingVertical: 8,
+    borderRadius: theme.borderRadius.md,
+    paddingVertical: 10,
     alignItems: 'center',
   },
   toolBtnText: {
     color: theme.colors.textSecondary,
     fontSize: theme.fontSize.xs,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   errorBox: {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-    borderColor: theme.colors.danger,
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    borderColor: 'rgba(239, 68, 68, 0.3)',
     borderWidth: 1,
     padding: theme.spacing.md,
-    borderRadius: theme.borderRadius.md,
+    borderRadius: theme.borderRadius.lg,
     marginBottom: theme.spacing.md,
   },
   errorTitle: {
-    color: theme.colors.danger,
+    color: theme.colors.dangerText,
     fontSize: theme.fontSize.xs,
-    fontWeight: 'bold',
+    fontWeight: '800',
   },
   errorText: {
-    color: theme.colors.danger,
+    color: theme.colors.dangerText,
     fontSize: theme.fontSize.xs,
-    marginTop: 2,
+    marginTop: 4,
   },
   codeEditor: {
-    backgroundColor: '#0a0f1d',
-    borderColor: theme.colors.cardBorder,
+    backgroundColor: '#060B12',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     borderWidth: 1,
-    borderRadius: theme.borderRadius.md,
+    borderRadius: theme.borderRadius.lg,
     padding: theme.spacing.md,
     fontSize: 13,
-    color: '#e2e8f0',
-    minHeight: 400,
+    color: '#E2E8F0',
+    minHeight: 420,
     textAlignVertical: 'top',
+    ...theme.shadows.sm,
   },
 });

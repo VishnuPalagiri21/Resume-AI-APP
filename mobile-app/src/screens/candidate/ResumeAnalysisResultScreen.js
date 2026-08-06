@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../../styles/theme';
 import { globalStyles } from '../../styles/globalStyles';
 import { Header } from '../../components/common/Header';
@@ -11,19 +12,19 @@ export const ResumeAnalysisResultScreen = ({ route, navigation }) => {
   const { resume } = route.params;
 
   return (
-    <View style={globalStyles.container}>
+    <SafeAreaView style={globalStyles.container}>
       <Header title="ATS Analysis Results 📊" subtitle={resume.fileName} />
       <ScrollView contentContainerStyle={styles.scroll}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Text style={styles.backText}>← Back to Upload</Text>
         </TouchableOpacity>
 
-        {/* Score Gauge */}
-        <View style={globalStyles.card}>
+        {/* Score Gauge Card */}
+        <View style={styles.scoreCard}>
           <AtsScoreGauge score={resume.atsScore ?? 0} />
           <Text style={styles.fileName}>File: {resume.fileName}</Text>
           <Text style={styles.dateText}>
-            Analyzed: {new Date(resume.createdAt || Date.now()).toLocaleDateString()}
+            Analyzed {new Date(resume.createdAt || Date.now()).toLocaleDateString()}
           </Text>
         </View>
 
@@ -51,7 +52,7 @@ export const ResumeAnalysisResultScreen = ({ route, navigation }) => {
           )}
         </View>
 
-        {/* AI Suggestions */}
+        {/* AI Recommendations */}
         <Text style={globalStyles.sectionHeading}>AI Recommendations</Text>
         <View style={globalStyles.card}>
           {resume.suggestions && resume.suggestions.length > 0 ? (
@@ -62,7 +63,7 @@ export const ResumeAnalysisResultScreen = ({ route, navigation }) => {
               </View>
             ))
           ) : (
-            <Text style={{ color: theme.colors.textMuted }}>No additional suggestions.</Text>
+            <Text style={{ color: theme.colors.textMuted }}>No specific AI recommendations.</Text>
           )}
         </View>
 
@@ -73,13 +74,14 @@ export const ResumeAnalysisResultScreen = ({ route, navigation }) => {
           style={{ marginVertical: theme.spacing.md }}
         />
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   scroll: {
     padding: theme.spacing.md,
+    paddingBottom: theme.spacing.xxl,
   },
   backBtn: {
     marginBottom: theme.spacing.sm,
@@ -87,13 +89,25 @@ const styles = StyleSheet.create({
   backText: {
     color: theme.colors.primaryLight,
     fontSize: theme.fontSize.sm,
-    fontWeight: '600',
+    fontWeight: '700',
+  },
+  scoreCard: {
+    backgroundColor: theme.colors.cardBg,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderRadius: theme.borderRadius.xl,
+    padding: theme.spacing.lg,
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+    ...theme.shadows.sm,
   },
   fileName: {
     fontSize: theme.fontSize.md,
-    fontWeight: 'bold',
+    fontWeight: '800',
     color: theme.colors.textPrimary,
     textAlign: 'center',
+    marginTop: theme.spacing.sm,
+    letterSpacing: -0.3,
   },
   dateText: {
     fontSize: theme.fontSize.xs,
@@ -105,6 +119,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     marginBottom: theme.spacing.md,
+    gap: 6,
   },
   suggestionItem: {
     flexDirection: 'row',

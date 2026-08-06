@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import { theme } from '../../styles/theme';
 import { globalStyles } from '../../styles/globalStyles';
@@ -107,7 +108,7 @@ export const ApplyJobModalScreen = ({ route, navigation }) => {
   };
 
   return (
-    <View style={globalStyles.container}>
+    <SafeAreaView style={globalStyles.container}>
       <Header title="Apply for Job" subtitle={jobTitle} />
       <ScrollView contentContainerStyle={styles.scroll}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
@@ -197,7 +198,7 @@ export const ApplyJobModalScreen = ({ route, navigation }) => {
           style={{ marginVertical: theme.spacing.xl }}
         />
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 };
 

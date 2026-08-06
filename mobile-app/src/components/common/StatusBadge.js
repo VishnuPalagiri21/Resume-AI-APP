@@ -5,6 +5,9 @@ import { theme } from '../../styles/theme';
 export const StatusBadge = ({ status }) => {
   const getBadgeStyle = () => {
     switch (status?.toLowerCase()) {
+      case 'under_review':
+      case 'under review':
+        return { bg: 'rgba(249, 115, 22, 0.15)', text: '#fb923c', label: '🔎 Under Review' };
       case 'shortlisted':
         return { bg: 'rgba(16, 185, 129, 0.15)', text: theme.colors.success, label: '⭐ Shortlisted' };
       case 'selected':

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../../styles/theme';
 import { globalStyles } from '../../styles/globalStyles';
 import { Header } from '../../components/common/Header';
@@ -33,8 +34,12 @@ export const TemplateSelectScreen = ({ navigation }) => {
     setLoading(true);
     try {
       const data = await editorApi.createDocument(title, selectedKey);
-      if (data.document) {
-        navigation.navigate('LatexEditor', { docId: data.document._id });
+      const targetDocId = data.document?._id || data.document?.id;
+      if (targetDocId) {
+        navigation.navigate('LatexEditor', { docId: targetDocId });
+      } else {
+        Alert.alert('Notice', 'Document created successfully');
+        navigation.navigate('DocumentListMain');
       }
     } catch (err) {
       Alert.alert('Error', err.message || 'Failed to create document');
@@ -44,7 +49,7 @@ export const TemplateSelectScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={globalStyles.container}>
+    <SafeAreaView style={globalStyles.container}>
       <Header title="Choose LaTeX Template" subtitle="Select a design style for your resume" />
       <ScrollView contentContainerStyle={styles.scroll}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
@@ -74,11 +79,15 @@ export const TemplateSelectScreen = ({ navigation }) => {
           >
             <View style={globalStyles.rowBetween}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={{ fontSize: 28, marginRight: 10 }}>{tpl.icon}</Text>
+                <View style={[styles.iconBox, selectedKey === tpl.key && styles.iconBoxSelected]}>
+                  <Text style={{ fontSize: 22 }}>{tpl.icon}</Text>
+                </View>
                 <View>
                   <Text style={styles.tplName}>{tpl.label}</Text>
                   {tpl.badge ? (
-                    <Text style={styles.badge}>{tpl.badge}</Text>
+                    <View style={styles.badgePill}>
+                      <Text style={styles.badgeText}>{tpl.badge}</Text>
+                    </View>
                   ) : null}
                 </View>
               </View>
@@ -102,13 +111,14 @@ export const TemplateSelectScreen = ({ navigation }) => {
           style={{ marginVertical: theme.spacing.lg }}
         />
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   scroll: {
     padding: theme.spacing.md,
+    paddingBottom: theme.spacing.xxl,
   },
   backBtn: {
     marginBottom: theme.spacing.md,
@@ -116,46 +126,69 @@ const styles = StyleSheet.create({
   backText: {
     color: theme.colors.primaryLight,
     fontSize: theme.fontSize.sm,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   tplCard: {
     backgroundColor: theme.colors.cardBg,
-    borderColor: theme.colors.cardBorder,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
     borderWidth: 1.5,
-    borderRadius: theme.borderRadius.md,
-    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.xl,
+    padding: theme.spacing.lg,
     marginBottom: theme.spacing.md,
+    ...theme.shadows.sm,
   },
   tplCardSelected: {
-    borderColor: theme.colors.primary,
+    borderColor: 'rgba(139, 92, 246, 0.4)',
     backgroundColor: 'rgba(139, 92, 246, 0.12)',
+    ...theme.shadows.glow,
+  },
+  iconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  iconBoxSelected: {
+    backgroundColor: 'rgba(139, 92, 246, 0.2)',
+    borderColor: 'rgba(139, 92, 246, 0.4)',
   },
   tplName: {
-    fontSize: theme.fontSize.lg,
-    fontWeight: 'bold',
+    fontSize: theme.fontSize.md,
+    fontWeight: '800',
     color: theme.colors.textPrimary,
+    letterSpacing: -0.3,
   },
-  badge: {
-    fontSize: 10,
-    color: theme.colors.primaryLight,
-    fontWeight: 'bold',
+  badgePill: {
     backgroundColor: 'rgba(139, 92, 246, 0.2)',
+    borderColor: 'rgba(139, 92, 246, 0.4)',
+    borderWidth: 1,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
     marginTop: 2,
     alignSelf: 'flex-start',
   },
+  badgeText: {
+    fontSize: 9,
+    color: theme.colors.primaryLight,
+    fontWeight: '800',
+  },
   tplDesc: {
-    fontSize: theme.fontSize.sm,
+    fontSize: theme.fontSize.xs,
     color: theme.colors.textSecondary,
-    marginTop: 8,
+    marginTop: theme.spacing.sm,
+    lineHeight: 18,
   },
   radio: {
     fontSize: 22,
     color: theme.colors.textMuted,
   },
   radioSelected: {
-    color: theme.colors.primary,
+    color: theme.colors.primaryLight,
   },
 });

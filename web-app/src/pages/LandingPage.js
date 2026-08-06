@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { getRoleCredentials, saveRoleCredential, removeRoleCredential } from "../utils/savedCredentials";
 
 const TESTIMONIALS = [
   {
@@ -33,6 +34,11 @@ export default function LandingPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [activeTestimonial, setActiveTestimonial] = useState(0);
 
+  const [savedAccounts, setSavedAccounts] = useState([]);
+  const [showDropdown, setShowDropdown]   = useState(false);
+  const [isEditable, setIsEditable]       = useState(false);
+  const emailGroupRef = React.useRef(null);
+
   const { login, signup, loginWithGoogle, user } = useAuth();
   const navigate = useNavigate();
 
@@ -44,7 +50,41 @@ export default function LandingPage() {
     }
   }, [user, navigate]);
 
+  React.useEffect(() => {
+    setIsEditable(false);
+    if (mode === "login") {
+      const creds = getRoleCredentials("candidate");
+      setSavedAccounts(creds);
+    }
+  }, [mode]);
+
+  React.useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (emailGroupRef.current && !emailGroupRef.current.contains(e.target)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const handleSelectSavedAccount = (acc) => {
+    setForm((f) => ({ ...f, email: acc.email, password: acc.password }));
+    setShowDropdown(false);
+    unlockInputs();
+  };
+
+  const handleRemoveSavedAccount = (e, accEmail) => {
+    e.stopPropagation();
+    removeRoleCredential("candidate", accEmail);
+    const updated = savedAccounts.filter((a) => a.email.toLowerCase() !== accEmail.toLowerCase());
+    setSavedAccounts(updated);
+    if (form.email.toLowerCase() === accEmail.toLowerCase()) {
+      setForm((f) => ({ ...f, email: "", password: "" }));
+    }
+  };
 
   const unlockInputs = () => {
     if (!unlocked) setUnlocked(true);
@@ -70,6 +110,9 @@ export default function LandingPage() {
     try {
       if (mode === "login") {
         await login(form.email, form.password, "user");
+        if (rememberMe) {
+          saveRoleCredential("candidate", form.email, form.password);
+        }
         navigate("/dashboard/user");
       } else {
         await signup({ ...form, role: "user" });
@@ -252,19 +295,61 @@ export default function LandingPage() {
               </div>
             )}
 
-            <div style={{ marginBottom: "16px" }}>
+            <div style={{ marginBottom: "16px", position: "relative" }} ref={emailGroupRef}>
               <label className="label-split-light">Email Address</label>
               <input
                 className="input-split-light"
                 type="email"
+                name="candidate_login_email_no_autofill"
+                autoComplete="off"
+                readOnly={!isEditable}
                 placeholder="you@example.com"
                 value={form.email}
                 onChange={set("email")}
                 onMouseEnter={unlockInputs}
-                onFocus={unlockInputs}
-                onClick={unlockInputs}
+                onFocus={(e) => {
+                  unlockInputs();
+                  setIsEditable(true);
+                  e.target.removeAttribute("readonly");
+                  if (mode === "login" && savedAccounts.length > 0) setShowDropdown(true);
+                }}
+                onClick={(e) => {
+                  unlockInputs();
+                  setIsEditable(true);
+                  e.target.removeAttribute("readonly");
+                  if (mode === "login" && savedAccounts.length > 0) setShowDropdown(true);
+                }}
                 required
               />
+
+              {/* Saved Candidate Accounts Dropdown */}
+              {mode === "login" && showDropdown && savedAccounts.length > 0 && (
+                <div style={styles.candidateDropdown}>
+                  <div style={styles.candidateDropdownHeader}>
+                    <span>SAVED CANDIDATE ACCOUNTS</span>
+                  </div>
+                  {savedAccounts.map((acc) => (
+                    <div
+                      key={acc.email}
+                      style={styles.dropdownItem}
+                      onClick={() => handleSelectSavedAccount(acc)}
+                    >
+                      <div style={{ display: "flex", flexDirection: "column" }}>
+                        <span style={{ fontWeight: 600, color: "#1e293b", fontSize: "0.85rem" }}>{acc.email}</span>
+                        <span style={{ fontSize: "0.72rem", color: "#64748b" }}>Saved candidate login</span>
+                      </div>
+                      <button
+                        type="button"
+                        style={styles.removeBtn}
+                        onClick={(e) => handleRemoveSavedAccount(e, acc.email)}
+                        title="Remove saved account"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div style={{ marginBottom: "16px" }}>
@@ -278,12 +363,23 @@ export default function LandingPage() {
                 <input
                   className="input-split-light"
                   type={showPassword ? "text" : "password"}
+                  name="candidate_login_password_no_autofill"
+                  autoComplete="new-password"
+                  readOnly={!isEditable}
                   placeholder="Enter your password"
                   value={form.password}
                   onChange={set("password")}
                   onMouseEnter={unlockInputs}
-                  onFocus={unlockInputs}
-                  onClick={unlockInputs}
+                  onFocus={(e) => {
+                    unlockInputs();
+                    setIsEditable(true);
+                    e.target.removeAttribute("readonly");
+                  }}
+                  onClick={(e) => {
+                    unlockInputs();
+                    setIsEditable(true);
+                    e.target.removeAttribute("readonly");
+                  }}
                   required
                 />
                 <button
@@ -558,5 +654,43 @@ const styles = {
     cursor: "pointer",
     transition: "all 0.2s ease",
     boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
+  },
+  candidateDropdown: {
+    position: "absolute",
+    top: "calc(100% + 4px)",
+    left: 0, right: 0,
+    backgroundColor: "#ffffff",
+    border: "1px solid #0d9488",
+    borderRadius: "10px",
+    zIndex: 100,
+    boxShadow: "0 10px 25px rgba(0,0,0,0.15)",
+    overflow: "hidden",
+  },
+  candidateDropdownHeader: {
+    padding: "8px 12px",
+    fontSize: "0.68rem",
+    fontWeight: 800,
+    letterSpacing: "0.8px",
+    color: "#0d9488",
+    borderBottom: "1px solid #e2e8f0",
+    backgroundColor: "#f0fdf4",
+  },
+  dropdownItem: {
+    padding: "10px 14px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    cursor: "pointer",
+    borderBottom: "1px solid #f1f5f9",
+    transition: "background 0.2s ease",
+  },
+  removeBtn: {
+    background: "transparent",
+    border: "none",
+    color: "#94a3b8",
+    fontSize: "0.8rem",
+    cursor: "pointer",
+    padding: "4px 8px",
+    borderRadius: "4px",
   },
 };

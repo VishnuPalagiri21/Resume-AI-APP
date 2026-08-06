@@ -77,7 +77,7 @@ export default function ResetPassword() {
               Your account password has been updated securely. All previous reset tokens and verification codes have been invalidated.
             </p>
             <button
-              onClick={() => navigate("/auth/user")}
+              onClick={() => navigate(searchParams.get("role") === "recruiter" ? "/recruiter" : "/")}
               className="btn btn-user"
               style={{
                 width: "100%",

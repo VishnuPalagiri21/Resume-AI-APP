@@ -12,7 +12,8 @@ export function parseLatexErrors(errorText = "") {
   if (!errorText) return [];
 
   const markers = [];
-  const lines = errorText.split("\n");
+  const strText = typeof errorText === "string" ? errorText : JSON.stringify(errorText);
+  const lines = strText.split("\n");
 
   let currentError = null;
 
