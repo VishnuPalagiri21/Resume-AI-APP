@@ -262,7 +262,7 @@ export const RecruiterAuthScreen = ({ navigation }) => {
               {!isRegister ? (
                 <TouchableOpacity
                   style={styles.forgotPillBtn}
-                  onPress={() => navigation.navigate('ForgotPassword')}
+                  onPress={() => navigation.navigate('ForgotPassword', { role: 'recruiter' })}
                   activeOpacity={0.7}
                 >
                   <Text style={styles.forgotPillText}>Forgot password?</Text>

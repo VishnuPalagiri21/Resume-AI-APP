@@ -176,7 +176,7 @@ export const AdminLoginScreen = ({ navigation }) => {
               <Text style={styles.fieldLabel}>PASSWORD</Text>
               <TouchableOpacity
                 style={styles.forgotPillBtn}
-                onPress={() => navigation.navigate('ForgotPassword')}
+                onPress={() => navigation.navigate('ForgotPassword', { role: 'admin' })}
                 activeOpacity={0.7}
               >
                 <Text style={styles.forgotPillText}>Forgot password?</Text>

@@ -7,8 +7,13 @@ const { analyzeResume } = require("../utils/atsEngine");
 const { verifyToken }   = require("../middleware/authMiddleware");
 const notificationRoutes = require("./notificationRoutes");
 
-// All user routes require authentication
-router.use(verifyToken);
+// All user routes require authentication + user role
+const isUser = (req, res, next) => {
+  if (req.user.role !== "user")
+    return res.status(403).json({ message: "Job seeker access only" });
+  next();
+};
+router.use(verifyToken, isUser);
 
 // Memory storage for direct PDF resume uploads inside Apply Modal
 const upload = multer({

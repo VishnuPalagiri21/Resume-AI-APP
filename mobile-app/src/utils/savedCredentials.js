@@ -82,7 +82,11 @@ export const saveRoleCredential = async (role, email, password) => {
         password: encodeVal(password),
         lastUsed: Date.now(),
       },
-      ...filtered,
+      ...filtered.map((item) => ({
+        email: item.email,
+        password: encodeVal(item.password),
+        lastUsed: item.lastUsed,
+      })),
     ];
 
     await AsyncStorage.setItem(storageKey, JSON.stringify(updated));

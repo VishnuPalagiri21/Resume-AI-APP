@@ -9,8 +9,8 @@ export const authApi = {
     const { data } = await API.post('/api/auth/signup', payload);
     return data;
   },
-  forgotPassword: async (email) => {
-    const { data } = await API.post('/api/auth/forgot-password', { email });
+  forgotPassword: async (email, role) => {
+    const { data } = await API.post('/api/auth/forgot-password', { email, role });
     return data;
   },
   verifyResetOtp: async (email, otp) => {

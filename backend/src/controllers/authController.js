@@ -13,7 +13,11 @@ const rateLimitStore = new Map();
 const otpMemoryStore = new Map();
 
 // JWT secret for short-lived password reset tokens (15 min)
-const JWT_RESET_SECRET = process.env.JWT_RESET_SECRET || "resumeai_secure_password_reset_jwt_secret_key_2026";
+const JWT_RESET_SECRET = process.env.JWT_RESET_SECRET;
+if (!JWT_RESET_SECRET && process.env.NODE_ENV === "production") {
+  throw new Error("❌ JWT_RESET_SECRET env var is required in production for password reset security");
+}
+const RESET_SECRET = JWT_RESET_SECRET || require("crypto").randomBytes(32).toString("hex");
 
 /* ═══════════════════════════════════════════════
    SIGNUP
@@ -42,9 +46,10 @@ const signup = async (req, res) => {
     if (!isEmail(email))
       return res.status(400).json({ message: "Invalid email address format" });
 
-    // ── Password strength — minimum 8 characters ─────────────────────────────
-    if (password.length < 8)
-      return res.status(400).json({ message: "Password must be at least 8 characters" });
+    // ── Password strength — same rules as password reset for consistency ────
+    const strengthError = validatePasswordStrength(password);
+    if (strengthError)
+      return res.status(400).json({ message: strengthError });
 
     // ── Field length guards ───────────────────────────────────────────────────
     if (fullName.length > 100)
@@ -129,6 +134,7 @@ const login = async (req, res) => {
       const errMsg = req.body.expectedRole === "user"
         ? "Access Denied: This account is registered as a Recruiter. Please log in using the Recruiter Portal."
         : "Access Denied: This account is registered as a Job Seeker. Please log in using the User Portal.";
+      return res.status(403).json({ message: errMsg });
     }
 
     const safeUser = {
@@ -577,7 +583,7 @@ const verifyResetOtp = async (req, res) => {
     // ── 6. Issue a short-lived JWT password reset token (15 minutes) ─────────
     const resetToken = jwt.sign(
       { userId: otpRow.user_id, email: cleanEmail, type: "password_reset" },
-      JWT_RESET_SECRET,
+      RESET_SECRET,
       { expiresIn: "15m" }
     );
 
@@ -626,7 +632,7 @@ const resetPassword = async (req, res) => {
     // ── 2. Verify the JWT reset token issued by verifyResetOtp ────────────────
     let userId = null;
     try {
-      const decoded = jwt.verify(token, JWT_RESET_SECRET);
+      const decoded = jwt.verify(token, RESET_SECRET);
       if (decoded?.userId && decoded?.type === "password_reset") {
         userId = decoded.userId;
       }

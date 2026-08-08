@@ -6,7 +6,8 @@ import { CustomInput } from '../../components/common/CustomInput';
 import { CustomButton } from '../../components/common/CustomButton';
 import { authApi } from '../../api/authApi';
 
-export const ForgotPasswordScreen = ({ navigation }) => {
+export const ForgotPasswordScreen = ({ route, navigation }) => {
+  const role = route.params?.role || 'user';
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -19,7 +20,7 @@ export const ForgotPasswordScreen = ({ navigation }) => {
     setErrorMsg('');
     setLoading(true);
     try {
-      await authApi.forgotPassword(email);
+      await authApi.forgotPassword(email, role);
       navigation.navigate('VerifyOtp', { email });
     } catch (err) {
       setErrorMsg(err.message || 'Failed to send OTP code');

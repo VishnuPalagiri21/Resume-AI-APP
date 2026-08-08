@@ -25,15 +25,50 @@ export const CandidateSignupScreen = ({ navigation }) => {
   const [secureText, setSecureText] = useState(true);
 
   const handleSignup = async () => {
-    if (!fullName || !email || !password) {
+    if (loading) return; // Prevent double-submission
+
+    if (!fullName.trim() || !email.trim() || !password) {
       setErrorMsg('Please fill in your name, email, and password.');
       return;
     }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      setErrorMsg('Please enter a valid email address.');
+      return;
+    }
+
+    if (password.length < 8) {
+      setErrorMsg('Password must be at least 8 characters long.');
+      return;
+    }
+    if (!/[A-Z]/.test(password)) {
+      setErrorMsg('Password must contain at least one uppercase letter.');
+      return;
+    }
+    if (!/[a-z]/.test(password)) {
+      setErrorMsg('Password must contain at least one lowercase letter.');
+      return;
+    }
+    if (!/[0-9]/.test(password)) {
+      setErrorMsg('Password must contain at least one number.');
+      return;
+    }
+    if (!/[@$!%*?&^#~_+\-=[\]{};':"\\|,.<>/?]/.test(password)) {
+      setErrorMsg('Password must contain at least one special character (@$!%*?& etc.).');
+      return;
+    }
+
+    if (phone.trim() && !/^\+?[\d\s\-().]{7,20}$/.test(phone.trim())) {
+      setErrorMsg('Please enter a valid phone number.');
+      return;
+    }
+
     setErrorMsg('');
     setLoading(true);
     try {
-      await signup({ fullName, email, password, phone, role: 'user' });
-      await login(email, password, 'user');
+      await signup({ fullName: fullName.trim(), email: email.trim(), password, phone: phone.trim(), role: 'user' });
+      await login(email.trim(), password, 'user');
     } catch (err) {
       setErrorMsg(err.message || 'Sign up failed. Please try again.');
     } finally {

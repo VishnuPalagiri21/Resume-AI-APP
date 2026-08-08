@@ -1,12 +1,20 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authApi } from '../api/authApi';
+import { setOnUnauthorized } from '../api/axios';
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Register 401 auto logout handler
+  useEffect(() => {
+    setOnUnauthorized(() => {
+      setUser(null);
+    });
+  }, []);
 
   // Restore stored session on startup
   useEffect(() => {

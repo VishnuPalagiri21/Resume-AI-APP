@@ -4,10 +4,12 @@ const supabase     = require("../config/supabase");
 const { verifyToken } = require("../middleware/authMiddleware");
 const notificationRoutes = require("./notificationRoutes");
 
-// Guard: recruiter role only
+// Guard: approved recruiter role only
 const isApprovedRecruiter = (req, res, next) => {
   if (req.user.role !== "recruiter")
     return res.status(403).json({ message: "Recruiter access only" });
+  if (!req.user.isApproved)
+    return res.status(403).json({ message: "Your recruiter account is pending approval. Please contact admin." });
   next();
 };
 
@@ -363,15 +365,46 @@ router.put("/jobs/:id", async (req, res) => {
 ───────────────────────────────────────────── */
 router.delete("/jobs/:id", async (req, res) => {
   try {
-    const { error } = await supabase
+    // 1. Verify job exists and belongs to recruiter
+    const { data: job, error: fetchErr } = await supabase
+      .from("jobs")
+      .select("id")
+      .eq("id", req.params.id)
+      .eq("recruiter_id", req.user.id)
+      .maybeSingle();
+
+    if (fetchErr || !job) {
+      return res.status(404).json({ message: "Job not found" });
+    }
+
+    // 2. Check if active applications exist for this job
+    const { data: existingApps, error: appErr } = await supabase
+      .from("applications")
+      .select("id")
+      .eq("job_id", req.params.id)
+      .limit(1);
+
+    if (!appErr && existingApps && existingApps.length > 0) {
+      return res.status(400).json({
+        message: "Cannot delete job with active applications. Please deactivate the listing instead.",
+      });
+    }
+
+    // 3. Delete job
+    const { error: deleteErr } = await supabase
       .from("jobs")
       .delete()
       .eq("id", req.params.id)
       .eq("recruiter_id", req.user.id);
 
-    if (error) return res.status(404).json({ message: "Job not found" });
-    res.json({ message: "Job deleted" });
+    if (deleteErr) {
+      console.error("[recruiterRoutes] deleteJob error:", deleteErr.message);
+      return res.status(500).json({ message: "Failed to delete job: " + deleteErr.message });
+    }
+
+    res.json({ message: "Job deleted successfully" });
   } catch (err) {
+    console.error("[recruiterRoutes] deleteJob unexpected error:", err.message);
     res.status(500).json({ message: "Failed to delete job" });
   }
 });

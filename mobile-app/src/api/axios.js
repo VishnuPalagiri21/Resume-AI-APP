@@ -60,6 +60,12 @@ API.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+let onUnauthorizedHandler = null;
+
+export const setOnUnauthorized = (handler) => {
+  onUnauthorizedHandler = handler;
+};
+
 // Response interceptor for error unwrapping
 API.interceptors.response.use(
   (response) => response,
@@ -67,6 +73,9 @@ API.interceptors.response.use(
     if (error.response?.status === 401) {
       await AsyncStorage.removeItem('resumeai_token');
       await AsyncStorage.removeItem('resumeai_user');
+      if (onUnauthorizedHandler) {
+        onUnauthorizedHandler();
+      }
     }
     const message =
       error.response?.data?.message ||

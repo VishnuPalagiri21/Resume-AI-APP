@@ -88,7 +88,11 @@ export const saveRoleCredential = (role, email, password) => {
         password: encodeVal(password),
         lastUsed: Date.now(),
       },
-      ...filtered,
+      ...filtered.map(item => ({
+        email: item.email,
+        password: encodeVal(item.password),
+        lastUsed: item.lastUsed,
+      })),
     ];
 
     localStorage.setItem(storageKey, JSON.stringify(updated));

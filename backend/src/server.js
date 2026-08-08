@@ -65,9 +65,9 @@ app.use(
       if (allowedOrigins.includes(origin)) return callback(null, true);
       // In development mode, allow localhost ports (Expo 8081, 19006, 8082, etc.) & local IP ranges
       if (
-        process.env.NODE_ENV !== "production" ||
-        /^http:\/\/(localhost|127\.0\.0\.1|10\.0\.2\.2|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+)(:\d+)?$/.test(origin) ||
-        origin.startsWith("exp://")
+        process.env.NODE_ENV !== "production" &&
+        (/^http:\/\/(localhost|127\.0\.0\.1|10\.0\.2\.2|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+)(:\d+)?$/.test(origin) ||
+        origin.startsWith("exp://"))
       ) {
         return callback(null, true);
       }

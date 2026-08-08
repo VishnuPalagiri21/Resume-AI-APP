@@ -179,7 +179,7 @@ export const LoginScreen = ({ route, navigation }) => {
               <Text style={styles.fieldLabel}>PASSWORD</Text>
               <TouchableOpacity
                 style={styles.forgotPillBtn}
-                onPress={() => navigation.navigate('ForgotPassword')}
+                onPress={() => navigation.navigate('ForgotPassword', { role })}
                 activeOpacity={0.7}
               >
                 <Text style={styles.forgotPillText}>Forgot password?</Text>
